@@ -62,4 +62,17 @@ describe('Todo API', () => {
     const res = await request(app).put('/tasks/3').send({ task: 'Bad' });
     expect(res.statusCode).toBe(400);
   });
+
+  test('PUT /tasks/:index rejects invalid task', async () => {
+    await request(app).post('/tasks').send({ task: 'Test' });
+    const res = await request(app).put('/tasks/0').send({ task: '' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid task');
+  });
+
+  test('PUT /tasks/:index handles non-existent index', async () => {
+    const res = await request(app).put('/tasks/999').send({ task: 'Test' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid index');
+  });
 });

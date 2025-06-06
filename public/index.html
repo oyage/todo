@@ -25,10 +25,14 @@
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
                 li.textContent = task;
-                const btn = document.createElement('button');
-                btn.textContent = '削除';
-                btn.onclick = () => deleteTask(i);
-                li.appendChild(btn);
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '編集';
+                editBtn.onclick = () => editTask(i, task);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '削除';
+                deleteBtn.onclick = () => deleteTask(i);
+                li.appendChild(editBtn);
+                li.appendChild(deleteBtn);
                 list.appendChild(li);
             });
         }
@@ -43,6 +47,17 @@
         async function deleteTask(index) {
             await fetch(`/tasks/${index}`, { method: 'DELETE' });
             fetchTasks();
+        }
+        async function editTask(index, currentTask) {
+            const newTask = prompt('タスクを編集:', currentTask);
+            if (newTask && newTask.trim() && newTask.trim() !== currentTask) {
+                await fetch(`/tasks/${index}`, { 
+                    method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ task: newTask.trim() }) 
+                });
+                fetchTasks();
+            }
         }
         fetchTasks();
     </script>
