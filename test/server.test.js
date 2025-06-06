@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const os = require('os');
 const request = require('supertest');
@@ -9,13 +10,13 @@ fs.writeFileSync(tmpFile, '', 'utf8');
 
 const app = require('../server');
 
-afterAll(() => {
-  fs.unlinkSync(tmpFile);
+afterAll(async () => {
+  await fsp.unlink(tmpFile);
   delete process.env.TASK_FILE;
 });
 
-beforeEach(() => {
-  fs.writeFileSync(tmpFile, '', 'utf8');
+beforeEach(async () => {
+  await fsp.writeFile(tmpFile, '', 'utf8');
 });
 
 describe('Todo API', () => {
