@@ -16,7 +16,16 @@ npm install
 npm start
 ```
 
-The server runs on <http://localhost:3000> and serves the HTML frontend from the `public/` directory. Use the page to add or delete tasks.
+The server runs on <http://localhost:3000> by default and serves the HTML frontend from the `public/` directory. Use the page to add or delete tasks. You can set the `PORT` environment variable to run it on a different port, e.g. `PORT=5000 npm start`.
+
+## Running tests
+
+Run the test suite with Jest. Install dependencies once and then execute the tests:
+
+```bash
+npm install
+npm test
+```
 
 ## File overview
 
