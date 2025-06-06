@@ -17,7 +17,7 @@ def save_tasks(tasks):
             f.write(task + "\n")
 
 def add_task(tasks, new_task):
-    """現在のタスクリストと新しいタスクを引数に取り、
+    """現在のタスクのリストと新しいタスクを引数に取り、
     新しいタスクをリストに追加して更新されたリストを返す。
     """
     tasks.append(new_task)
@@ -34,7 +34,7 @@ def display_tasks(tasks):
             print(f"{i}. {task}")
 
 def delete_task(tasks, task_index):
-    """現在のタスクリストと削除したいタスクのインデックスを引数に取り、
+    """現在のタスクのリストと削除したいタスクのインデックスを引数に取り、
     該当するタスクをリストから削除し、成功したかどうかと更新されたリストを返す。
     """
     if 0 <= task_index < len(tasks):
