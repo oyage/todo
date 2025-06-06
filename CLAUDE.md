@@ -11,18 +11,11 @@ npm start
 
 ## Architecture
 
-This is a simple TODO application with two implementations:
+This is a simple web-based TODO application built with Express.js:
 
-1. **Web-based version**: Express.js server with HTML frontend
-   - `server.js`: REST API server with endpoints for CRUD operations
-   - `public/index.html`: Single-page frontend with JavaScript
-   - API endpoints: GET/POST `/tasks`, DELETE `/tasks/:index`
-
-2. **CLI version**: Python command-line interface
-   - `todo.py`: Interactive console application with menu-driven interface
-
-Both implementations share the same data storage:
+- `server.js`: REST API server with endpoints for CRUD operations
+- `public/index.html`: Single-page frontend with JavaScript
+- API endpoints: GET/POST `/tasks`, DELETE `/tasks/:index`
 - `tasks.txt`: Plain text file storing tasks (one per line, UTF-8 encoded)
-- Both Python and Node.js versions read/write this file with UTF-8 encoding
 
 The web server runs on port 3000 and serves static files from the `public/` directory.
