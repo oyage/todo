@@ -16,6 +16,8 @@ npm install
 npm start
 ```
 
+初回起動時に`tasks.db`ファイルが自動生成されます。
+
 デフォルトでサーバーは<http://localhost:3000>で動作します。別のポートを使用する場合は、`PORT`環境変数を設定してください：
 
 ```bash
@@ -50,12 +52,14 @@ docker-compose up
 npm test
 ```
 
+テストを実行すると一時的な`test.db`ファイルが生成され、終了後に自動で削除されます。
+
 ## ファイル概要
 
 - `server.js` – REST APIを公開するExpressサーバー
 - `database.js` – SQLiteデータベース操作
 - `public/index.html` – ウェブ版のフロントエンド
-- `tasks.db` – タスクを保存するSQLiteデータベース
+- `tasks.db` – タスクを保存するSQLiteデータベース（初回起動時に自動生成）
 - `test/server.test.js` – APIエンドポイントのテスト
 - `CLAUDE.md` – プロジェクトに関する追加メモ
 
@@ -76,7 +80,7 @@ Express.jsとSQLiteで構築されたシンプルなウェブベースTODOアプ
 - `database.js`: SQLiteデータベース操作モジュール
 - `public/index.html`: JavaScriptを使用したシングルページフロントエンド
 - APIエンドポイント: GET/POST `/tasks`、PUT `/tasks/:id`、DELETE `/tasks/:id`
-- `tasks.db`: タスクを保存するSQLiteデータベース
+- `tasks.db`: タスクを保存するSQLiteデータベース（初回起動時に自動生成）
 - `test/server.test.js`: APIエンドポイントテスト
 
 ウェブサーバーはポート3000で動作し、`public/`ディレクトリから静的ファイルを提供します。
