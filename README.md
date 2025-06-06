@@ -1,6 +1,6 @@
 # TODO Application
 
-This repository provides a simple web-based TODO manager. Tasks are stored in `tasks.txt`.
+This repository provides a simple web-based TODO manager. Tasks are stored in SQLite database.
 
 ## Web version (Node.js/Express)
 
@@ -22,13 +22,31 @@ By default the server runs on <http://localhost:3000>. To use a different port, 
 PORT=4000 npm start
 ```
 
-The app serves the HTML frontend from the `public/` directory. Use the page to add or delete tasks.
+The app serves the HTML frontend from the `public/` directory. Use the page to add, edit, or delete tasks.
+
+## Docker support
+
+Run with Docker Compose:
+
+```bash
+docker-compose up
+```
+
+## Testing
+
+Run tests:
+
+```bash
+npm test
+```
 
 ## File overview
 
-- `server.js` – Express server exposing a small REST API.
+- `server.js` – Express server exposing a REST API.
+- `database.js` – SQLite database operations.
 - `public/index.html` – Frontend for the web version.
-- `tasks.txt` – Plain text storage of tasks.
+- `tasks.db` – SQLite database storing tasks.
+- `test/server.test.js` – API endpoint tests.
 - `CLAUDE.md` – Additional notes about the project.
 
 あなたがこのリポジトリを利用する際にはAGENTS.mdに従ってください。AGENTS.mdが見つからない場合、次善策としてREADMEを参照しましょう。
