@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>TODOアプリ</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin-bottom: 5px; }
+        button { margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>TODOアプリ</h1>
+    <input type="text" id="newTask" placeholder="新しいタスク">
+    <button onclick="addTask()">追加</button>
+    <ul id="taskList"></ul>
+
+    <script>
+        async function fetchTasks() {
+            const res = await fetch('/tasks');
+            const tasks = await res.json();
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+            tasks.forEach((task, i) => {
+                const li = document.createElement('li');
+                li.textContent = task;
+                const btn = document.createElement('button');
+                btn.textContent = '削除';
+                btn.onclick = () => deleteTask(i);
+                li.appendChild(btn);
+                list.appendChild(li);
+            });
+        }
+        async function addTask() {
+            const input = document.getElementById('newTask');
+            const task = input.value.trim();
+            if (!task) return;
+            await fetch('/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task }) });
+            input.value = '';
+            fetchTasks();
+        }
+        async function deleteTask(index) {
+            await fetch(`/tasks/${index}`, { method: 'DELETE' });
+            fetchTasks();
+        }
+        fetchTasks();
+    </script>
+</body>
+</html>
