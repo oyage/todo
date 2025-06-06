@@ -7,8 +7,21 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+const BEARER_TOKEN = process.env.BEARER_TOKEN || 'your-secret-token';
 
-app.get('/tasks', async (req, res) => {
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token || token !== BEARER_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  next();
+}
+
+
+app.get('/tasks', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     res.json(tasks.map(task => task.text));
@@ -18,7 +31,7 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-app.post('/tasks', async (req, res) => {
+app.post('/tasks', authenticateToken, async (req, res) => {
   try {
     const { task } = req.body;
     if (typeof task !== 'string' || !task.trim()) {
@@ -32,7 +45,7 @@ app.post('/tasks', async (req, res) => {
   }
 });
 
-app.delete('/tasks/:index', async (req, res) => {
+app.delete('/tasks/:index', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     const idx = parseInt(req.params.index, 10);
@@ -51,7 +64,7 @@ app.delete('/tasks/:index', async (req, res) => {
   }
 });
 
-app.put('/tasks/:index', async (req, res) => {
+app.put('/tasks/:index', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     const idx = parseInt(req.params.index, 10);

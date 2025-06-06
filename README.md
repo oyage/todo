@@ -22,6 +22,16 @@ By default the server runs on <http://localhost:3000>. To use a different port, 
 PORT=4000 npm start
 ```
 
+## Authentication
+
+The application uses Bearer Token authentication. Set the `BEARER_TOKEN` environment variable:
+
+```bash
+BEARER_TOKEN=your-secret-token npm start
+```
+
+If not set, the default token `your-secret-token` is used. The frontend is pre-configured with this token.
+
 The app serves the HTML frontend from the `public/` directory. Use the page to add, edit, or delete tasks.
 
 ## Docker support

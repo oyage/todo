@@ -57,8 +57,26 @@
     </div>
 
     <script>
+        const BEARER_TOKEN = 'your-secret-token';
+        
+        function getAuthHeaders() {
+            return {
+                'Authorization': `Bearer ${BEARER_TOKEN}`,
+                'Content-Type': 'application/json'
+            };
+        }
+        
         async function fetchTasks() {
-            const res = await fetch('/tasks');
+            const res = await fetch('/tasks', {
+                headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
+            });
+            if (!res.ok) {
+                if (res.status === 401) {
+                    alert('認証エラー: トークンが無効です');
+                    return;
+                }
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
             const tasks = await res.json();
             const list = document.getElementById('taskList');
             list.innerHTML = '';
@@ -107,23 +125,66 @@
             const input = document.getElementById('newTask');
             const task = input.value.trim();
             if (!task) return;
-            await fetch('/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task }) });
-            input.value = '';
-            fetchTasks();
+            try {
+                const res = await fetch('/tasks', { 
+                    method: 'POST', 
+                    headers: getAuthHeaders(), 
+                    body: JSON.stringify({ task }) 
+                });
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                input.value = '';
+                fetchTasks();
+            } catch (error) {
+                console.error('Error adding task:', error);
+                alert('タスクの追加に失敗しました');
+            }
         }
         async function deleteTask(index) {
-            await fetch(`/tasks/${index}`, { method: 'DELETE' });
-            fetchTasks();
+            try {
+                const res = await fetch(`/tasks/${index}`, { 
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                fetchTasks();
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                alert('タスクの削除に失敗しました');
+            }
         }
         async function editTask(index, currentTask) {
             const newTask = prompt('タスクを編集:', currentTask);
             if (newTask && newTask.trim() && newTask.trim() !== currentTask) {
-                await fetch(`/tasks/${index}`, { 
-                    method: 'PUT', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ task: newTask.trim() }) 
-                });
-                fetchTasks();
+                try {
+                    const res = await fetch(`/tasks/${index}`, { 
+                        method: 'PUT', 
+                        headers: getAuthHeaders(), 
+                        body: JSON.stringify({ task: newTask.trim() }) 
+                    });
+                    if (!res.ok) {
+                        if (res.status === 401) {
+                            alert('認証エラー: トークンが無効です');
+                            return;
+                        }
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    fetchTasks();
+                } catch (error) {
+                    console.error('Error editing task:', error);
+                    alert('タスクの編集に失敗しました');
+                }
             }
         }
         

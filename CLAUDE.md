@@ -38,4 +38,9 @@ The web server runs on port 3000 and serves static files from the `public/` dire
 - Edit existing tasks  
 - Delete tasks
 - Persistent SQLite storage
+- Bearer Token authentication
 - Full test coverage
+
+## Authentication
+
+All API endpoints require Bearer Token authentication. Set the `BEARER_TOKEN` environment variable or use the default `your-secret-token`. The frontend includes the token in all requests.

@@ -6,6 +6,9 @@ const path = require('path');
 const testDbPath = path.join(__dirname, '..', 'test.db');
 const db = new sqlite3.Database(testDbPath);
 
+process.env.NODE_ENV = 'test';
+process.env.BEARER_TOKEN = 'test-token';
+
 const app = require('../server');
 
 afterAll(async () => {
@@ -24,63 +27,96 @@ beforeEach(async () => {
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
+  process.env.BEARER_TOKEN = 'test-token';
   await initializeDatabase();
 });
 
+const authHeaders = { 'Authorization': 'Bearer test-token' };
+
 describe('Todo API', () => {
-  test('GET /tasks returns empty array initially', async () => {
-    const res = await request(app).get('/tasks');
+  test('GET /tasks returns empty array initially with auth', async () => {
+    const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual([]);
   });
 
-  test('POST /tasks adds a task', async () => {
-    await request(app).post('/tasks').send({ task: 'Test' });
+  test('GET /tasks returns 401 without auth', async () => {
     const res = await request(app).get('/tasks');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
+  test('POST /tasks adds a task with auth', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
+    const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.body).toEqual(['Test']);
   });
 
+  test('POST /tasks returns 401 without auth', async () => {
+    const res = await request(app).post('/tasks').send({ task: 'Test' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
   test('POST /tasks rejects invalid task', async () => {
-    const res = await request(app).post('/tasks').send({ task: '' });
+    const res = await request(app).post('/tasks').set(authHeaders).send({ task: '' });
     expect(res.statusCode).toBe(400);
   });
 
-  test('DELETE /tasks/:index removes a task', async () => {
-    await request(app).post('/tasks').send({ task: 'Test' });
-    const resDel = await request(app).delete('/tasks/0');
+  test('DELETE /tasks/:index removes a task with auth', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
+    const resDel = await request(app).delete('/tasks/0').set(authHeaders);
     expect(resDel.statusCode).toBe(200);
-    const res = await request(app).get('/tasks');
+    const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.body).toEqual([]);
   });
 
+  test('DELETE /tasks/:index returns 401 without auth', async () => {
+    const res = await request(app).delete('/tasks/0');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
   test('DELETE /tasks/:index invalid index returns 400', async () => {
-    const res = await request(app).delete('/tasks/5');
+    const res = await request(app).delete('/tasks/5').set(authHeaders);
     expect(res.statusCode).toBe(400);
   });
 
-  test('PUT /tasks/:index updates a task', async () => {
-    await request(app).post('/tasks').send({ task: 'Old' });
-    const resUpdate = await request(app).put('/tasks/0').send({ task: 'New' });
+  test('PUT /tasks/:index updates a task with auth', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Old' });
+    const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'New' });
     expect(resUpdate.statusCode).toBe(200);
-    const res = await request(app).get('/tasks');
+    const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.body).toEqual(['New']);
   });
 
+  test('PUT /tasks/:index returns 401 without auth', async () => {
+    const res = await request(app).put('/tasks/0').send({ task: 'Test' });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
   test('PUT /tasks/:index invalid index returns 400', async () => {
-    const res = await request(app).put('/tasks/3').send({ task: 'Bad' });
+    const res = await request(app).put('/tasks/3').set(authHeaders).send({ task: 'Bad' });
     expect(res.statusCode).toBe(400);
   });
 
   test('PUT /tasks/:index rejects invalid task', async () => {
-    await request(app).post('/tasks').send({ task: 'Test' });
-    const res = await request(app).put('/tasks/0').send({ task: '' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
+    const res = await request(app).put('/tasks/0').set(authHeaders).send({ task: '' });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toBe('invalid task');
   });
 
   test('PUT /tasks/:index handles non-existent index', async () => {
-    const res = await request(app).put('/tasks/999').send({ task: 'Test' });
+    const res = await request(app).put('/tasks/999').set(authHeaders).send({ task: 'Test' });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toBe('invalid index');
+  });
+
+  test('Unauthorized with invalid token', async () => {
+    const res = await request(app).get('/tasks').set('Authorization', 'Bearer invalid-token');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
   });
 });
