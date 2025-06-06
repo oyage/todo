@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const app = express();
 const PORT = 3000;
-const TASK_FILE = path.join(__dirname, 'tasks.txt');
+const TASK_FILE = process.env.TASK_FILE || path.join(__dirname, 'tasks.txt');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,6 +47,10 @@ app.delete('/tasks/:index', (req, res) => {
   res.json({ message: 'task deleted' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

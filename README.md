@@ -1,6 +1,6 @@
 # TODO Application
 
-This repository provides two implementations of a simple TODO manager. Tasks are stored in `tasks.txt` and shared by both the web-based and CLI versions.
+This repository provides a simple web-based TODO manager. Tasks are stored in `tasks.txt`.
 
 ## Web version (Node.js/Express)
 
@@ -18,21 +18,10 @@ npm start
 
 The server runs on <http://localhost:3000> and serves the HTML frontend from the `public/` directory. Use the page to add or delete tasks.
 
-## CLI version (Python)
-
-Run the CLI program directly:
-
-```bash
-python todo.py
-```
-
-Follow the prompts to add, list, or delete tasks via the terminal.
-
 ## File overview
 
 - `server.js` – Express server exposing a small REST API.
 - `public/index.html` – Frontend for the web version.
-- `todo.py` – Menu-driven CLI application.
 - `tasks.txt` – Plain text storage of tasks.
 - `CLAUDE.md` – Additional notes about the project.
 
