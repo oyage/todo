@@ -2,19 +2,59 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TODOアプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in-out',
+                        'slide-in': 'slideIn 0.3s ease-out'
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin-bottom: 5px; }
-        button { margin-left: 10px; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
     </style>
 </head>
-<body>
-    <h1>TODOアプリ</h1>
-    <input type="text" id="newTask" placeholder="新しいタスク">
-    <button onclick="addTask()">追加</button>
-    <ul id="taskList"></ul>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <div class="bg-white rounded-2xl shadow-xl p-8 animate-fade-in">
+            <h1 class="text-4xl font-bold text-center mb-8 text-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                TODOアプリ
+            </h1>
+            
+            <div class="mb-8">
+                <div class="flex gap-3">
+                    <input 
+                        type="text" 
+                        id="newTask" 
+                        placeholder="新しいタスクを入力..." 
+                        class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                    >
+                    <button 
+                        onclick="addTask()" 
+                        class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                        追加
+                    </button>
+                </div>
+            </div>
+            
+            <ul id="taskList" class="space-y-3"></ul>
+        </div>
+    </div>
 
     <script>
         async function fetchTasks() {
@@ -22,17 +62,44 @@
             const tasks = await res.json();
             const list = document.getElementById('taskList');
             list.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'text-center py-12 text-gray-500';
+                emptyState.innerHTML = `
+                    <div class="text-6xl mb-4">📝</div>
+                    <p class="text-lg">まだタスクがありません</p>
+                    <p class="text-sm">上の入力欄からタスクを追加してください</p>
+                `;
+                list.appendChild(emptyState);
+                return;
+            }
+            
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
-                li.textContent = task;
-                const editBtn = document.createElement('button');
-                editBtn.textContent = '編集';
-                editBtn.onclick = () => editTask(i, task);
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = '削除';
-                deleteBtn.onclick = () => deleteTask(i);
-                li.appendChild(editBtn);
-                li.appendChild(deleteBtn);
+                li.className = 'bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-all duration-200 animate-slide-in';
+                li.style.animationDelay = `${i * 50}ms`;
+                
+                li.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-gray-800 font-medium flex-1 mr-4">${task}</span>
+                        <div class="flex gap-2">
+                            <button 
+                                onclick="editTask(${i}, '${task.replace(/'/g, "\\'")}')" 
+                                class="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium"
+                            >
+                                ✏️ 編集
+                            </button>
+                            <button 
+                                onclick="deleteTask(${i})" 
+                                class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium"
+                            >
+                                🗑️ 削除
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
                 list.appendChild(li);
             });
         }
@@ -59,6 +126,16 @@
                 fetchTasks();
             }
         }
+        
+        // Enter key support for adding tasks
+        document.addEventListener('DOMContentLoaded', function() {
+            const input = document.getElementById('newTask');
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addTask();
+                }
+            });
+        });
         fetchTasks();
     </script>
 </body>
