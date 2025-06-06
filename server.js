@@ -48,6 +48,21 @@ app.delete('/tasks/:index', async (req, res) => {
   res.json({ message: 'task deleted' });
 });
 
+app.put('/tasks/:index', (req, res) => {
+  const tasks = loadTasks();
+  const idx = parseInt(req.params.index, 10);
+  const { task } = req.body;
+  if (isNaN(idx) || idx < 0 || idx >= tasks.length) {
+    return res.status(400).json({ error: 'invalid index' });
+  }
+  if (typeof task !== 'string' || !task.trim()) {
+    return res.status(400).json({ error: 'invalid task' });
+  }
+  tasks[idx] = task.trim();
+  saveTasks(tasks);
+  res.json({ message: 'task updated' });
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
