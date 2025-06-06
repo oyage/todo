@@ -16,6 +16,8 @@ npm install
 npm start
 ```
 
+On the first run, this command creates a `tasks.db` SQLite file in the project directory.
+
 By default the server runs on <http://localhost:3000>. To use a different port, set the `PORT` environment variable:
 
 ```bash
@@ -50,12 +52,14 @@ Run tests:
 npm test
 ```
 
+Running tests will generate a temporary `test.db` file which is removed automatically when the tests finish.
+
 ## File overview
 
 - `server.js` – Express server exposing a REST API.
 - `database.js` – SQLite database operations.
 - `public/index.html` – Frontend for the web version.
-- `tasks.db` – SQLite database storing tasks.
+- `tasks.db` – SQLite database storing tasks (created automatically on first run).
 - `test/server.test.js` – API endpoint tests.
 - `CLAUDE.md` – Additional notes about the project.
 

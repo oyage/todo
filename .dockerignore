@@ -10,3 +10,7 @@ coverage
 *.md
 test
 .DS_Store
+
+# SQLite databases
+tasks.db
+test.db
