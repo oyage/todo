@@ -8,43 +8,59 @@ const TASK_FILE = process.env.TASK_FILE || path.join(__dirname, 'tasks.txt');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function loadTasks() {
+async function loadTasks() {
   try {
-    const data = fs.readFileSync(TASK_FILE, 'utf8');
+    const data = await fs.promises.readFile(TASK_FILE, 'utf8');
     return data.split(/\r?\n/).filter(t => t);
   } catch (err) {
     return [];
   }
 }
 
-function saveTasks(tasks) {
-  fs.writeFileSync(TASK_FILE, tasks.join('\n'), 'utf8');
+async function saveTasks(tasks) {
+  await fs.promises.writeFile(TASK_FILE, tasks.join('\n'), 'utf8');
 }
 
-app.get('/tasks', (req, res) => {
-  res.json(loadTasks());
+app.get('/tasks', async (req, res) => {
+  const tasks = await loadTasks();
+  res.json(tasks);
 });
 
-app.post('/tasks', (req, res) => {
-  const tasks = loadTasks();
+app.post('/tasks', async (req, res) => {
+  const tasks = await loadTasks();
   const { task } = req.body;
   if (typeof task !== 'string' || !task.trim()) {
     return res.status(400).json({ error: 'invalid task' });
   }
   tasks.push(task.trim());
-  saveTasks(tasks);
+  await saveTasks(tasks);
   res.status(201).json({ message: 'task added' });
 });
 
-app.delete('/tasks/:index', (req, res) => {
-  const tasks = loadTasks();
+app.delete('/tasks/:index', async (req, res) => {
+  const tasks = await loadTasks();
   const idx = parseInt(req.params.index, 10);
   if (isNaN(idx) || idx < 0 || idx >= tasks.length) {
     return res.status(400).json({ error: 'invalid index' });
   }
   tasks.splice(idx, 1);
-  saveTasks(tasks);
+  await saveTasks(tasks);
   res.json({ message: 'task deleted' });
+});
+
+app.put('/tasks/:index', async (req, res) => {
+  const tasks = await loadTasks();
+  const idx = parseInt(req.params.index, 10);
+  const { task } = req.body;
+  if (isNaN(idx) || idx < 0 || idx >= tasks.length) {
+    return res.status(400).json({ error: 'invalid index' });
+  }
+  if (typeof task !== 'string' || !task.trim()) {
+    return res.status(400).json({ error: 'invalid task' });
+  }
+  tasks[idx] = task.trim();
+  await saveTasks(tasks);
+  res.json({ message: 'task updated' });
 });
 
 if (require.main === module) {

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const os = require('os');
 const request = require('supertest');
@@ -9,13 +10,13 @@ fs.writeFileSync(tmpFile, '', 'utf8');
 
 const app = require('../server');
 
-afterAll(() => {
-  fs.unlinkSync(tmpFile);
+afterAll(async () => {
+  await fsp.unlink(tmpFile);
   delete process.env.TASK_FILE;
 });
 
-beforeEach(() => {
-  fs.writeFileSync(tmpFile, '', 'utf8');
+beforeEach(async () => {
+  await fsp.writeFile(tmpFile, '', 'utf8');
 });
 
 describe('Todo API', () => {
@@ -46,6 +47,19 @@ describe('Todo API', () => {
 
   test('DELETE /tasks/:index invalid index returns 400', async () => {
     const res = await request(app).delete('/tasks/5');
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('PUT /tasks/:index updates a task', async () => {
+    await request(app).post('/tasks').send({ task: 'Old' });
+    const resUpdate = await request(app).put('/tasks/0').send({ task: 'New' });
+    expect(resUpdate.statusCode).toBe(200);
+    const res = await request(app).get('/tasks');
+    expect(res.body).toEqual(['New']);
+  });
+
+  test('PUT /tasks/:index invalid index returns 400', async () => {
+    const res = await request(app).put('/tasks/3').send({ task: 'Bad' });
     expect(res.statusCode).toBe(400);
   });
 });
