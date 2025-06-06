@@ -1,22 +1,30 @@
-const fs = require('fs');
-const fsp = fs.promises;
-const path = require('path');
-const os = require('os');
 const request = require('supertest');
+const { initializeDatabase } = require('../database');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-const tmpFile = path.join(os.tmpdir(), `tasks-${Date.now()}.txt`);
-process.env.TASK_FILE = tmpFile;
-fs.writeFileSync(tmpFile, '', 'utf8');
+const testDbPath = path.join(__dirname, '..', 'test.db');
+const db = new sqlite3.Database(testDbPath);
 
 const app = require('../server');
 
 afterAll(async () => {
-  await fsp.unlink(tmpFile);
-  delete process.env.TASK_FILE;
+  db.close();
+  const fs = require('fs');
+  if (fs.existsSync(testDbPath)) {
+    fs.unlinkSync(testDbPath);
+  }
 });
 
 beforeEach(async () => {
-  await fsp.writeFile(tmpFile, '', 'utf8');
+  await new Promise((resolve) => {
+    db.run('DELETE FROM tasks', resolve);
+  });
+});
+
+beforeAll(async () => {
+  process.env.NODE_ENV = 'test';
+  await initializeDatabase();
 });
 
 describe('Todo API', () => {
