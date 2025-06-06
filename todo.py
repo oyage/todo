@@ -3,7 +3,7 @@ def load_tasks():
     ファイルが存在しない場合は空のリストを返す。
     """
     try:
-        with open("tasks.txt", "r") as f:
+        with open("tasks.txt", "r", encoding="utf-8") as f:
             tasks = [line.strip() for line in f.readlines()]
         return tasks
     except FileNotFoundError:
@@ -12,7 +12,7 @@ def load_tasks():
 def save_tasks(tasks):
     """タスクのリストを引数に取り、tasks.txt に各タスクを1行ずつ書き込む。
     """
-    with open("tasks.txt", "w") as f:
+    with open("tasks.txt", "w", encoding="utf-8") as f:
         for task in tasks:
             f.write(task + "\n")
 
