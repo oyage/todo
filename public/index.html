@@ -84,11 +84,22 @@
             if (tasks.length === 0) {
                 const emptyState = document.createElement('div');
                 emptyState.className = 'text-center py-12 text-gray-500';
-                emptyState.innerHTML = `
-                    <div class="text-6xl mb-4">📝</div>
-                    <p class="text-lg">まだタスクがありません</p>
-                    <p class="text-sm">上の入力欄からタスクを追加してください</p>
-                `;
+
+                const icon = document.createElement('div');
+                icon.className = 'text-6xl mb-4';
+                icon.textContent = '📝';
+
+                const msg1 = document.createElement('p');
+                msg1.className = 'text-lg';
+                msg1.textContent = 'まだタスクがありません';
+
+                const msg2 = document.createElement('p');
+                msg2.className = 'text-sm';
+                msg2.textContent = '上の入力欄からタスクを追加してください';
+
+                emptyState.appendChild(icon);
+                emptyState.appendChild(msg1);
+                emptyState.appendChild(msg2);
                 list.appendChild(emptyState);
                 return;
             }
@@ -97,27 +108,34 @@
                 const li = document.createElement('li');
                 li.className = 'bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-all duration-200 animate-slide-in';
                 li.style.animationDelay = `${i * 50}ms`;
-                
-                li.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <span class="text-gray-800 font-medium flex-1 mr-4">${task}</span>
-                        <div class="flex gap-2">
-                            <button 
-                                onclick="editTask(${i}, '${task.replace(/'/g, "\\'")}')" 
-                                class="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium"
-                            >
-                                ✏️ 編集
-                            </button>
-                            <button 
-                                onclick="deleteTask(${i})" 
-                                class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium"
-                            >
-                                🗑️ 削除
-                            </button>
-                        </div>
-                    </div>
-                `;
-                
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center justify-between';
+
+                const span = document.createElement('span');
+                span.className = 'text-gray-800 font-medium flex-1 mr-4';
+                span.textContent = task;
+
+                const btnContainer = document.createElement('div');
+                btnContainer.className = 'flex gap-2';
+
+                const editBtn = document.createElement('button');
+                editBtn.className = 'px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium';
+                editBtn.textContent = '✏️ 編集';
+                editBtn.addEventListener('click', () => editTask(i, task));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium';
+                deleteBtn.textContent = '🗑️ 削除';
+                deleteBtn.addEventListener('click', () => deleteTask(i));
+
+                btnContainer.appendChild(editBtn);
+                btnContainer.appendChild(deleteBtn);
+
+                wrapper.appendChild(span);
+                wrapper.appendChild(btnContainer);
+                li.appendChild(wrapper);
+
                 list.appendChild(li);
             });
         }

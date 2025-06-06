@@ -2,6 +2,7 @@ const request = require('supertest');
 const { initializeDatabase } = require('../database');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const { JSDOM } = require('jsdom');
 
 const testDbPath = path.join(__dirname, '..', 'test.db');
 const db = new sqlite3.Database(testDbPath);
@@ -118,5 +119,30 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set('Authorization', 'Bearer invalid-token');
     expect(res.statusCode).toBe(401);
     expect(res.body.error).toBe('Unauthorized');
+  });
+
+  test('index.html escapes task text content', async () => {
+    const malicious = '<img src=x onerror="alert(1)">';
+    await request(app).post('/tasks').set(authHeaders).send({ task: malicious });
+    const serverInstance = app.listen(0);
+    const port = serverInstance.address().port;
+
+    const fs = require('fs');
+    const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8').replace('your-secret-token', 'test-token');
+    const dom = new JSDOM(html, {
+      runScripts: 'dangerously',
+      resources: 'usable',
+      url: `http://localhost:${port}/`
+    });
+
+    dom.window.fetch = (input, init) => fetch(new URL(input, dom.window.location.href), init);
+
+    await new Promise(resolve => dom.window.addEventListener('load', resolve));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const span = dom.window.document.querySelector('#taskList span');
+    expect(span).not.toBeNull();
+    expect(span.textContent).toBe(malicious);
+    expect(span.querySelector('img')).toBeNull();
+    serverInstance.close();
   });
 });
