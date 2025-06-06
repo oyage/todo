@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const TASK_FILE = process.env.TASK_FILE || path.join(__dirname, 'tasks.txt');
 
 app.use(express.json());
