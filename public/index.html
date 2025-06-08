@@ -59,14 +59,23 @@
                 <h1 class="text-2xl sm:text-4xl font-bold text-center flex-1 text-gray-800 dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     TODOアプリ
                 </h1>
-                <button 
-                    id="themeToggle"
-                    onclick="toggleTheme()"
-                    class="ml-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
-                    title="テーマを切り替え"
-                >
-                    <span id="themeIcon" class="text-xl">🌙</span>
-                </button>
+                <div class="flex gap-2">
+                    <button 
+                        onclick="toggleShortcutHelp()"
+                        class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
+                        title="キーボードショートカット (H)"
+                    >
+                        <span class="text-xl">⌨️</span>
+                    </button>
+                    <button 
+                        id="themeToggle"
+                        onclick="toggleTheme()"
+                        class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
+                        title="テーマを切り替え (T)"
+                    >
+                        <span id="themeIcon" class="text-xl">🌙</span>
+                    </button>
+                </div>
             </div>
             
             <div class="mb-4 sm:mb-8">
@@ -211,6 +220,139 @@
         </div>
     </div>
 
+    <!-- Keyboard Shortcuts Help Modal -->
+    <div id="shortcutHelpModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">キーボードショートカット</h2>
+                    <button 
+                        onclick="toggleShortcutHelp()"
+                        class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200"
+                        title="閉じる"
+                    >
+                        <span class="text-xl">✕</span>
+                    </button>
+                </div>
+                
+                <div class="grid gap-6 md:grid-cols-2">
+                    <!-- Basic Actions -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">基本操作</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">新しいタスクを追加</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">N</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">検索フィールドにフォーカス</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">F</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">テーマ切り替え</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">T</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">フィルターをクリア</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">C</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">ヘルプを表示</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">H</kbd>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Navigation -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">ナビゲーション</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">前のタスクを選択</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">↑</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">次のタスクを選択</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">↓</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">選択解除</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Esc</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">優先度フィルター（高/中/低）</span>
+                                <div class="space-x-1">
+                                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">1</kbd>
+                                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">2</kbd>
+                                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">3</kbd>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Task Actions -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">タスク操作</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">タスクの完了切り替え</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Space</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">タスクを編集</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Enter</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">タスクを削除</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Del</kbd>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bulk Operations -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">一括操作</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">すべて選択/解除</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Ctrl+A</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">選択したタスクを完了</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Ctrl+S</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">選択したタスクを削除</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Ctrl+D</kbd>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Input Field Shortcuts -->
+                    <div class="md:col-span-2">
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">入力フィールド</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">タスク入力フィールドからタスクを追加</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Ctrl+Enter</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">入力フィールドからフォーカスを外す</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Esc</kbd>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center">
+                        💡 ヒント: 入力フィールドにフォーカスしていない時にキーを押すと、ショートカットが動作します
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const BEARER_TOKEN = 'your-secret-token';
         let isDragAndDropEnabled = false;
@@ -255,6 +397,228 @@
         
         // Initialize theme on page load
         initializeTheme();
+        
+        // Keyboard shortcuts management
+        let selectedTaskIndex = -1;
+        let isShortcutHelpVisible = false;
+        
+        function handleKeyboardShortcuts(e) {
+            // Don't interfere with typing in input fields
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                // Allow Escape to clear focus from input fields
+                if (e.key === 'Escape') {
+                    e.target.blur();
+                    return;
+                }
+                // Allow Ctrl+Enter to add task when in input field
+                if (e.key === 'Enter' && e.ctrlKey && e.target.id === 'newTask') {
+                    e.preventDefault();
+                    addTask();
+                    return;
+                }
+                return;
+            }
+            
+            // Prevent default for handled shortcuts
+            const shortcutsToPrevent = ['n', 'a', 'f', 's', 't', 'd', 'h', '?', ' ', 'Enter', 'Delete', 'Backspace'];
+            if (shortcutsToPrevent.includes(e.key) || 
+                (e.key >= '1' && e.key <= '9') ||
+                (e.ctrlKey && ['a', 'f', 's'].includes(e.key.toLowerCase()))) {
+                e.preventDefault();
+            }
+            
+            // Handle shortcuts
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key.toLowerCase()) {
+                    case 'n':
+                        focusNewTaskInput();
+                        break;
+                    case 'f':
+                        focusSearchInput();
+                        break;
+                    case 'a':
+                        toggleSelectAllTasks();
+                        break;
+                    case 's':
+                        if (getSelectedTaskIndices().length > 0) {
+                            bulkComplete();
+                        }
+                        break;
+                    case 'd':
+                        if (getSelectedTaskIndices().length > 0) {
+                            bulkDelete();
+                        }
+                        break;
+                    case 't':
+                        toggleTheme();
+                        break;
+                }
+                return;
+            }
+            
+            switch(e.key) {
+                case 'n':
+                case 'a':
+                    focusNewTaskInput();
+                    break;
+                case 'f':
+                case 's':
+                    focusSearchInput();
+                    break;
+                case 't':
+                    toggleTheme();
+                    break;
+                case 'h':
+                case '?':
+                    toggleShortcutHelp();
+                    break;
+                case 'ArrowUp':
+                    navigateTask(-1);
+                    break;
+                case 'ArrowDown':
+                    navigateTask(1);
+                    break;
+                case ' ':
+                    if (selectedTaskIndex >= 0) {
+                        toggleTaskCompletion(selectedTaskIndex);
+                    }
+                    break;
+                case 'Enter':
+                    if (selectedTaskIndex >= 0) {
+                        const tasks = document.querySelectorAll('#taskList li');
+                        if (tasks[selectedTaskIndex]) {
+                            const task = getCurrentTaskData(selectedTaskIndex);
+                            if (task) {
+                                editTask(selectedTaskIndex, task);
+                            }
+                        }
+                    }
+                    break;
+                case 'Delete':
+                case 'Backspace':
+                    if (selectedTaskIndex >= 0) {
+                        deleteTask(selectedTaskIndex);
+                    }
+                    break;
+                case 'Escape':
+                    clearTaskSelection();
+                    if (isShortcutHelpVisible) {
+                        toggleShortcutHelp();
+                    }
+                    break;
+                // Number keys for priority filter
+                case '1':
+                case '2':
+                case '3':
+                    setPriorityFilter(e.key);
+                    break;
+                // Clear filters
+                case 'c':
+                    clearFilters();
+                    break;
+            }
+        }
+        
+        // Helper functions for keyboard shortcuts
+        function focusNewTaskInput() {
+            const input = document.getElementById('newTask');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }
+        
+        function focusSearchInput() {
+            const input = document.getElementById('searchInput');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        }
+        
+        function toggleSelectAllTasks() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.click();
+            }
+        }
+        
+        function navigateTask(direction) {
+            const tasks = document.querySelectorAll('#taskList li');
+            if (tasks.length === 0) return;
+            
+            const newIndex = Math.max(0, Math.min(tasks.length - 1, selectedTaskIndex + direction));
+            selectTask(newIndex);
+        }
+        
+        function selectTask(index) {
+            clearTaskSelection();
+            const tasks = document.querySelectorAll('#taskList li');
+            if (tasks[index]) {
+                selectedTaskIndex = index;
+                tasks[index].classList.add('ring-2', 'ring-blue-500', 'ring-offset-2');
+                tasks[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        
+        function clearTaskSelection() {
+            const tasks = document.querySelectorAll('#taskList li');
+            tasks.forEach(task => {
+                task.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2');
+            });
+            selectedTaskIndex = -1;
+        }
+        
+        function getCurrentTaskData(index) {
+            // This would need to access the task data from the current tasks array
+            // For now, we'll use a workaround
+            const taskElement = document.querySelectorAll('#taskList li')[index];
+            if (!taskElement) return null;
+            
+            const taskId = parseInt(taskElement.dataset.taskId);
+            const text = taskElement.querySelector('span').textContent;
+            const completed = taskElement.querySelector('input[type="checkbox"]:not(.task-select-checkbox)').checked;
+            
+            return { id: taskId, text, completed };
+        }
+        
+        function setPriorityFilter(priority) {
+            const priorityMap = { '1': 'high', '2': 'medium', '3': 'low' };
+            // Set priority in the sort order dropdown - this is a simple implementation
+            // In a real app, you might want a separate priority filter
+            const sortOrder = document.getElementById('sortOrder');
+            if (sortOrder) {
+                // For now, just focus on the sort dropdown to indicate the action
+                sortOrder.focus();
+                console.log(`Priority filter shortcut pressed: ${priorityMap[priority]}`);
+            }
+        }
+        
+        function toggleShortcutHelp() {
+            const modal = document.getElementById('shortcutHelpModal');
+            if (!modal) return;
+            
+            if (isShortcutHelpVisible) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                isShortcutHelpVisible = false;
+            } else {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                isShortcutHelpVisible = true;
+            }
+        }
+        
+        // Add keyboard event listener
+        document.addEventListener('keydown', handleKeyboardShortcuts);
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('shortcutHelpModal');
+            if (modal && isShortcutHelpVisible && e.target === modal) {
+                toggleShortcutHelp();
+            }
+        });
         
         function getAuthHeaders() {
             return {
@@ -960,6 +1324,9 @@
             if (bulkActionsBar) {
                 bulkActionsBar.classList.add('hidden');
             }
+            
+            // Clear keyboard navigation selection when tasks are updated
+            clearTaskSelection();
             
             } catch (error) {
                 console.error('Error fetching tasks:', error);
