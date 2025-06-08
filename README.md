@@ -1,66 +1,117 @@
 # TODO Application
 
-This repository provides a simple web-based TODO manager. Tasks are stored in SQLite database.
+A secure web-based TODO manager with comprehensive task management features. Built with Express.js and SQLite, featuring Bearer token authentication, HTTPS support, and Docker deployment.
 
-## Web version (Node.js/Express)
+## Features
+
+- **Task Management**: Add, edit, delete tasks with priority levels, due dates, and categories
+- **Bulk Operations**: Select and manage multiple tasks simultaneously
+- **Advanced UI**: Search, filter by category, sort by priority or date
+- **Checkboxes**: Individual and bulk task completion toggling
+- **Persistent Storage**: SQLite database with automatic initialization
+- **Security**: Bearer token authentication, CORS, rate limiting, HTTPS support
+- **Docker Ready**: Production-ready containerization with security hardening
+
+## Quick Start
+
+### Node.js/Express
 
 1. Install dependencies:
-
 ```bash
 npm install
 ```
 
 2. Start the server:
-
 ```bash
 npm start
 ```
 
-On the first run, this command creates a `tasks.db` SQLite file in the project directory.
-
-By default the server runs on <http://localhost:3000>. To use a different port, set the `PORT` environment variable:
-
+Server runs on <http://localhost:3000> by default. Set `PORT` environment variable for different port:
 ```bash
 PORT=4000 npm start
 ```
 
+### Docker (Recommended)
+
+Start with enhanced security features:
+```bash
+npm run docker:start
+```
+
+Alternative Docker commands:
+```bash
+# Standard deployment
+npm run docker:up
+
+# Simple deployment (named volumes)
+npm run docker:up-simple
+
+# View logs
+npm run docker:logs
+
+# Test HTTP/HTTPS access
+npm run docker:test
+
+# Fix SSL permissions if needed
+npm run docker:fix-ssl
+
+# Security audit
+npm run docker:security-audit
+
+# Stop services
+npm run docker:down
+```
+
 ## Authentication
 
-The application uses Bearer Token authentication. Set the `BEARER_TOKEN` environment variable:
+Bearer Token authentication is required for all API endpoints:
 
 ```bash
 BEARER_TOKEN=your-secret-token npm start
 ```
 
-If not set, the default token `your-secret-token` is used. The frontend is pre-configured with this token.
+Default token is `your-secret-token` if not specified. Frontend is pre-configured with this token.
 
-The app serves the HTML frontend from the `public/` directory. Use the page to add, edit, or delete tasks.
+## API Endpoints
 
-## Docker support
+- `GET/POST /tasks` - List/create tasks
+- `PUT /tasks/:id` - Update task
+- `DELETE /tasks/:id` - Delete task
+- `PATCH /tasks/:id/toggle` - Toggle task completion
+- `POST /tasks/bulk-delete` - Delete multiple tasks
+- `POST /tasks/bulk-complete` - Complete multiple tasks
 
-Run with Docker Compose:
+## Security Features
 
-```bash
-docker-compose up
-```
+- **Authentication**: Bearer token validation
+- **HTTPS**: SSL/TLS encryption with auto-generated certificates
+- **CORS**: Cross-origin request protection with whitelisting
+- **Rate Limiting**: API and authentication endpoint protection
+- **Security Headers**: Helmet.js integration (CSP, HSTS, XSS protection)
+- **Docker Security**: Non-root execution, capability restrictions, resource limits
 
 ## Testing
 
-Run tests:
-
+Run comprehensive test suite:
 ```bash
 npm test
 ```
 
-Running tests will generate a temporary `test.db` file which is removed automatically when the tests finish.
+Tests create a temporary `test.db` file that's automatically cleaned up.
 
-## File overview
+## Architecture
 
-- `server.js` – Express server exposing a REST API.
-- `database.js` – SQLite database operations.
-- `public/index.html` – Frontend for the web version.
-- `tasks.db` – SQLite database storing tasks (created automatically on first run).
-- `test/server.test.js` – API endpoint tests.
-- `CLAUDE.md` – Additional notes about the project.
+- `server.js` – Express REST API server with security middleware
+- `database.js` – SQLite database operations module
+- `public/index.html` – Single-page frontend with advanced task management
+- `public/sw.js` – Service worker for offline functionality
+- `test/server.test.js` – Complete API endpoint test coverage
+- `tasks.db` – SQLite database (auto-created)
+- `ssl/` – SSL certificates for HTTPS
+- `docker-data/` – Docker persistent volumes
 
-あなたがこのリポジトリを利用する際にはAGENTS.mdに従ってください。AGENTS.mdが見つからない場合、次善策としてREADMEを参照しましょう。
+## Development
+
+The application automatically creates `tasks.db` on first run. Frontend is served from `public/` directory with full task management capabilities including search, filtering, bulk operations, and responsive design.
+
+See `CLAUDE.md` for detailed development guidelines and `SECURITY.md` for security documentation.
