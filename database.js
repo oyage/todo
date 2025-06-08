@@ -103,16 +103,7 @@ function addTask(text, priority = 'medium', dueDate = null, category = null) {
         if (err) {
           reject(err);
         } else {
-          resolve({ 
-            id: this.lastID, 
-            text, 
-            priority, 
-            due_date: dueDate, 
-            category, 
-            completed: false, 
-            sort_order: nextSortOrder,
-            created_at: new Date().toISOString() 
-          });
+          resolve(this.lastID);
         }
       });
     });

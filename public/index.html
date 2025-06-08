@@ -528,6 +528,10 @@
             static showInfo(message) {
                 this.showToast(message, 'info', 3000);
             }
+            
+            static showError(message) {
+                this.showToast(message, 'error', 5000);
+            }
         }
         let isDragAndDropEnabled = false;
         let draggedElement = null;
@@ -614,12 +618,12 @@
                         toggleSelectAllTasks();
                         break;
                     case 's':
-                        if (getSelectedTaskIndices().length > 0) {
+                        if (getSelectedTaskIds().length > 0) {
                             bulkComplete();
                         }
                         break;
                     case 'd':
-                        if (getSelectedTaskIndices().length > 0) {
+                        if (getSelectedTaskIds().length > 0) {
                             bulkDelete();
                         }
                         break;
@@ -1103,7 +1107,16 @@
 
         async function toggleTaskCompletion(index) {
             try {
-                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}/toggle`, { 
+                // Get the task ID from the DOM element
+                const taskElement = document.querySelectorAll('#taskList li')[index];
+                const taskId = parseInt(taskElement.dataset.taskId);
+                
+                if (!taskId) {
+                    ErrorHandler.showError('タスクIDが見つかりません');
+                    return;
+                }
+                
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${taskId}`, { 
                     method: 'PATCH',
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
@@ -1156,76 +1169,79 @@
             }
         }
 
-        function getSelectedTaskIndices() {
+        function getSelectedTaskIds() {
             const checkedCheckboxes = document.querySelectorAll('.task-select-checkbox:checked');
-            return Array.from(checkedCheckboxes).map(checkbox => parseInt(checkbox.dataset.taskIndex));
+            return Array.from(checkedCheckboxes).map(checkbox => {
+                const taskElement = checkbox.closest('li');
+                return parseInt(taskElement.dataset.taskId);
+            }).filter(id => !isNaN(id));
         }
 
         async function bulkDelete() {
-            const selectedIndices = getSelectedTaskIndices();
-            if (selectedIndices.length === 0) {
+            const selectedIds = getSelectedTaskIds();
+            if (selectedIds.length === 0) {
                 ErrorHandler.showWarning('削除するタスクを選択してください');
                 return;
             }
             
-            if (!confirm(`選択した${selectedIndices.length}個のタスクを削除しますか？`)) {
+            if (!confirm(`選択した${selectedIds.length}個のタスクを削除しますか？`)) {
                 return;
             }
             
             try {
-                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-delete', {
-                    method: 'POST',
+                const res = await ErrorHandler.fetchWithRetry('/tasks', {
+                    method: 'DELETE',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ indices: selectedIndices })
+                    body: JSON.stringify({ ids: selectedIds })
                 });
                 
                 const result = await res.json();
                 fetchTasks();
-                ErrorHandler.showSuccess(result.message || '選択したタスクを削除しました');
+                ErrorHandler.showSuccess(`${result.deleted}個のタスクを削除しました`);
             } catch (error) {
                 ErrorHandler.handleApiError(error, 'bulkDelete');
             }
         }
 
         async function bulkComplete() {
-            const selectedIndices = getSelectedTaskIndices();
-            if (selectedIndices.length === 0) {
+            const selectedIds = getSelectedTaskIds();
+            if (selectedIds.length === 0) {
                 ErrorHandler.showWarning('完了するタスクを選択してください');
                 return;
             }
             
             try {
-                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-complete', {
-                    method: 'POST',
+                const res = await ErrorHandler.fetchWithRetry('/tasks', {
+                    method: 'PATCH',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ indices: selectedIndices, completed: true })
+                    body: JSON.stringify({ ids: selectedIds, completed: true })
                 });
                 
                 const result = await res.json();
                 fetchTasks();
-                ErrorHandler.showSuccess(result.message || '選択したタスクを完了にしました');
+                ErrorHandler.showSuccess(`${result.updated}個のタスクを完了にしました`);
             } catch (error) {
                 ErrorHandler.handleApiError(error, 'bulkComplete');
             }
         }
 
         async function bulkIncomplete() {
-            const selectedIndices = getSelectedTaskIndices();
-            if (selectedIndices.length === 0) {
+            const selectedIds = getSelectedTaskIds();
+            if (selectedIds.length === 0) {
                 ErrorHandler.showWarning('未完了に戻すタスクを選択してください');
                 return;
             }
             
             try {
-                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-complete', {
-                    method: 'POST',
+                const res = await ErrorHandler.fetchWithRetry('/tasks', {
+                    method: 'PATCH',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ indices: selectedIndices, completed: false })
+                    body: JSON.stringify({ ids: selectedIds, completed: false })
                 });
                 
                 const result = await res.json();
                 fetchTasks();
-                ErrorHandler.showSuccess(result.message || '選択したタスクを未完了に戻しました');
+                ErrorHandler.showSuccess(`${result.updated}個のタスクを未完了に戻しました`);
             } catch (error) {
                 ErrorHandler.handleApiError(error, 'bulkIncomplete');
             }
@@ -1478,7 +1494,7 @@
             }
             
             try {
-                const requestBody = { task, priority };
+                const requestBody = { text: task, priority };
                 if (dueDate) {
                     requestBody.due_date = dueDate;
                 }
@@ -1505,13 +1521,21 @@
         }
         async function deleteTask(index) {
             try {
-                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}`, { 
+                // Get the task ID from the DOM element
+                const taskElement = document.querySelectorAll('#taskList li')[index];
+                const taskId = parseInt(taskElement.dataset.taskId);
+                
+                if (!taskId) {
+                    ErrorHandler.showError('タスクIDが見つかりません');
+                    return;
+                }
+                
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${taskId}`, { 
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
                 
-                const result = await res.json();
-                ErrorHandler.showSuccess(result.message || 'タスクを削除しました');
+                ErrorHandler.showSuccess('タスクを削除しました');
                 fetchTasks();
             } catch (error) {
                 ErrorHandler.handleApiError(error, 'deleteTask');
@@ -1701,7 +1725,7 @@
             
             try {
                 const requestBody = { 
-                    task: newText, 
+                    text: newText, 
                     priority: newPriority, 
                     completed: newCompleted 
                 };
@@ -1713,7 +1737,9 @@
                     requestBody.category = newCategory;
                 }
                 
-                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}`, { 
+                // Get the task ID from the original task
+                const taskId = originalTask.id;
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${taskId}`, { 
                     method: 'PUT', 
                     headers: getAuthHeaders(), 
                     body: JSON.stringify(requestBody) 
