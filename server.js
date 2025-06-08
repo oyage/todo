@@ -709,6 +709,10 @@ app.post('/tasks/reorder', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'failed to reorder tasks' });
     }
     
+    // タスク並び替え時にキャッシュをクリア
+    clearTaskCache();
+    
+    Logger.info('Task reorder completed', { requestId: req.requestId, taskCount: taskOrders.length });
     res.json({ message: 'tasks reordered successfully' });
   } catch (err) {
     console.error('Error in POST /tasks/reorder:', err);

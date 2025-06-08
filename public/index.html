@@ -1002,14 +1002,18 @@
             document.getElementById('searchInput').value = '';
             document.getElementById('categoryFilter').value = '';
             document.getElementById('sortOrder').value = 'priority';
+            // ソート順をpriorityに戻すので、ドラッグ&ドロップを無効にする
             isDragAndDropEnabled = false;
             fetchTasks();
         }
 
         function handleSortChange() {
             const sortOrder = document.getElementById('sortOrder').value;
+            const previousDragState = isDragAndDropEnabled;
             isDragAndDropEnabled = sortOrder === 'manual';
-            console.log('Sort order changed to:', sortOrder, 'Drag enabled:', isDragAndDropEnabled);
+            console.log('Sort order changed to:', sortOrder, 'Drag enabled:', isDragAndDropEnabled, 'Previous state:', previousDragState);
+            
+            // ソート順が変更された場合はタスクを再取得
             fetchTasks();
         }
 
@@ -1033,16 +1037,19 @@
         }
 
         function makeTaskDraggable(taskElement, task, index) {
-            if (!isDragAndDropEnabled) {
-                taskElement.draggable = false;
-                taskElement.style.cursor = '';
-                // Remove drag-related attributes
-                taskElement.removeAttribute('data-drag-listeners');
-                return taskElement;
+            // 既存のドラッグハンドルを削除
+            const existingHandle = taskElement.querySelector('.drag-handle');
+            if (existingHandle) {
+                existingHandle.remove();
             }
-
-            // Check if drag listeners are already attached
-            if (taskElement.hasAttribute('data-drag-listeners')) {
+            
+            // ドラッグ関連の古い属性をリセット
+            taskElement.draggable = false;
+            taskElement.style.cursor = '';
+            taskElement.style.borderLeft = '';
+            
+            if (!isDragAndDropEnabled) {
+                console.log('Drag and drop disabled for task:', task.text);
                 return taskElement;
             }
 
@@ -1055,15 +1062,17 @@
             taskElement.style.touchAction = 'manipulation';
             taskElement.setAttribute('data-drag-listeners', 'true');
             
-            // Add visual indicator for mobile drag
-            if (isMobile) {
-                const dragHandle = document.createElement('div');
-                dragHandle.className = 'absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:hidden';
-                dragHandle.innerHTML = '⋮⋮';
-                dragHandle.style.pointerEvents = 'none';
-                taskElement.style.position = 'relative';
-                taskElement.appendChild(dragHandle);
-            }
+            // ドラッグ可能であることを示すために枠線を追加
+            taskElement.style.borderLeft = '4px solid #3b82f6';
+            
+            // Add visual indicator for drag handle
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'drag-handle absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg';
+            dragHandle.innerHTML = '⋮⋮';
+            dragHandle.style.pointerEvents = 'none';
+            dragHandle.title = 'ドラッグして並び替え';
+            taskElement.style.position = 'relative';
+            taskElement.appendChild(dragHandle);
             
             taskElement.addEventListener('dragstart', (e) => {
                 draggedElement = taskElement;
@@ -1381,6 +1390,8 @@
                     list.appendChild(emptyState);
                     return;
                 }
+            
+            console.log('Rendering tasks with drag enabled:', isDragAndDropEnabled, 'Task count:', tasks.length);
             
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
@@ -1856,6 +1867,11 @@
             
             // パフォーマンス最適化を初期化
             PerformanceOptimizer.init();
+            
+            // 初期のソート順に基づいてドラッグ&ドロップを設定
+            const sortOrder = document.getElementById('sortOrder').value;
+            isDragAndDropEnabled = sortOrder === 'manual';
+            console.log('Initial drag and drop enabled:', isDragAndDropEnabled, 'Sort order:', sortOrder);
         });
         fetchTasks();
     </script>
