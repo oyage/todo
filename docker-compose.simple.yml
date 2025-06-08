@@ -1,19 +1,26 @@
-version: '3.8'
 
 services:
   todo-app:
     build: .
     container_name: todo-app-secure
     
+    # コンテナ起動時に権限を修正してからアプリケーションを起動
+    command: >
+      sh -c "
+        chmod 644 /app/ssl/private.key 2>/dev/null || true &&
+        chmod 644 /app/ssl/cert.pem 2>/dev/null || true &&
+        npm start
+      "
+    
     # ポート設定 - HTTPとHTTPS
     ports:
       - "3000:3000"
       - "3443:3443"
     
-    # 簡単なボリューム設定（named volumes使用）
+    # ボリューム設定（bind mount + named volume の組み合わせ）
     volumes:
       - todo-data:/app/data:rw
-      - todo-ssl:/app/ssl:rw
+      - ./docker-data/ssl:/app/ssl:rw  # SSL証明書はbind mount
       - /etc/localtime:/etc/localtime:ro  # タイムゾーン設定
     
     # セキュリティ関連の環境変数
@@ -88,6 +95,4 @@ networks:
 # 簡単なボリューム設定
 volumes:
   todo-data:
-    driver: local
-  todo-ssl:
     driver: local

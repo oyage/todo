@@ -29,6 +29,12 @@ npm run docker:up-simple
 # ログ確認
 npm run docker:logs
 
+# 動作テスト（HTTPとHTTPSアクセスの確認）
+npm run docker:test
+
+# SSL証明書権限問題の修正
+npm run docker:fix-ssl
+
 # セキュリティ監査
 npm run docker:security-audit
 

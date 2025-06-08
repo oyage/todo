@@ -46,17 +46,70 @@ if [ ! -f "docker-data/ssl/private.key" ] || [ ! -f "docker-data/ssl/cert.pem" ]
         echo "⚠️  OpenSSLがインストールされていません。"
         echo "   Ubuntu/Debian: sudo apt-get install openssl"
         echo "   CentOS/RHEL: sudo yum install openssl"
-        echo "   SSL証明書なしで続行します..."
+        echo "   macOS: brew install openssl"
+        echo "   Windows: SSL証明書生成をスキップします..."
     else
+        # 詳細なSSL証明書設定でSAN（Subject Alternative Name）を追加
+        cat > docker-data/ssl/openssl.conf << EOF
+[req]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = JP
+ST = Tokyo
+L = Tokyo
+O = TodoApp
+OU = Development
+CN = localhost
+
+[v3_req]
+keyUsage = keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = *.localhost
+IP.1 = 127.0.0.1
+IP.2 = 0.0.0.0
+EOF
+
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout docker-data/ssl/private.key \
             -out docker-data/ssl/cert.pem \
-            -subj "/C=JP/ST=Tokyo/L=Tokyo/O=TodoApp/OU=Dev/CN=localhost" 2>/dev/null
+            -config docker-data/ssl/openssl.conf \
+            -extensions v3_req 2>/dev/null
         
-        chmod 600 docker-data/ssl/private.key
+        # SSL証明書の権限設定（Docker用）
+        chmod 644 docker-data/ssl/private.key  # コンテナ内のUID 1001が読めるように
         chmod 644 docker-data/ssl/cert.pem
-        echo "   SSL証明書を生成しました。"
+        
+        # 可能であればUID 1001の所有者に変更
+        if command -v chown &> /dev/null; then
+            chown 1001:1001 docker-data/ssl/private.key docker-data/ssl/cert.pem 2>/dev/null || true
+        fi
+        
+        echo "   SSL証明書を生成しました（SAN対応、Docker権限設定済み）。"
+        
+        # 一時設定ファイルを削除
+        rm -f docker-data/ssl/openssl.conf
     fi
+else
+    echo "✅ SSL証明書が既に存在します。"
+    
+    # 既存証明書の権限確認・修正
+    echo "🔒 既存SSL証明書の権限を確認・調整しています..."
+    chmod 644 docker-data/ssl/private.key 2>/dev/null || true
+    chmod 644 docker-data/ssl/cert.pem 2>/dev/null || true
+    
+    # 可能であればUID 1001の所有者に変更
+    if command -v chown &> /dev/null; then
+        chown 1001:1001 docker-data/ssl/private.key docker-data/ssl/cert.pem 2>/dev/null || true
+    fi
+    
+    echo "   既存SSL証明書の権限を調整しました。"
 fi
 
 # Dockerの状態確認

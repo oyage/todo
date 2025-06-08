@@ -18,6 +18,8 @@
     "docker:down": "docker-compose down",
     "docker:down-simple": "docker-compose -f docker-compose.simple.yml down",
     "docker:logs": "docker-compose logs -f todo-app",
+    "docker:test": "./scripts/docker-test.sh",
+    "docker:fix-ssl": "./scripts/fix-ssl-permissions.sh",
     "docker:security-audit": "./scripts/docker-security-audit.sh",
     "docker:build": "docker-compose build --no-cache"
   },

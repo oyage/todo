@@ -816,11 +816,15 @@ process.on('uncaughtException', (error) => {
 // HTTPS設定とサーバー起動
 function createHTTPSOptions() {
   try {
-    const sslPath = path.join(__dirname, 'ssl');
-    const keyPath = path.join(sslPath, 'private.key');
-    const certPath = path.join(sslPath, 'cert.pem');
+    // 環境変数またはデフォルトパス
+    const sslPath = process.env.SSL_PATH || path.join(__dirname, 'ssl');
+    const keyPath = process.env.SSL_KEY_PATH || path.join(sslPath, 'private.key');
+    const certPath = process.env.SSL_CERT_PATH || path.join(sslPath, 'cert.pem');
+    
+    Logger.info('Checking SSL certificates', { keyPath, certPath });
     
     if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      Logger.info('SSL certificates found, creating HTTPS server');
       return {
         key: fs.readFileSync(keyPath),
         cert: fs.readFileSync(certPath)
@@ -828,7 +832,9 @@ function createHTTPSOptions() {
     } else {
       Logger.warn('SSL certificates not found. HTTPS server will not start.', {
         keyPath,
-        certPath
+        certPath,
+        keyExists: fs.existsSync(keyPath),
+        certExists: fs.existsSync(certPath)
       });
       return null;
     }
