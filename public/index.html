@@ -153,11 +153,12 @@
                             <label for="sortOrder" class="text-sm text-gray-600 whitespace-nowrap">並び順:</label>
                             <select 
                                 id="sortOrder" 
-                                onchange="fetchTasks()" 
+                                onchange="handleSortChange()" 
                                 class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                             >
                                 <option value="priority">優先度順</option>
                                 <option value="created">作成日順</option>
+                                <option value="manual">手動並び替え</option>
                             </select>
                         </div>
                         <button 
@@ -176,6 +177,9 @@
 
     <script>
         const BEARER_TOKEN = 'your-secret-token';
+        let isDragAndDropEnabled = false;
+        let draggedElement = null;
+        let draggedTaskId = null;
         
         function getAuthHeaders() {
             return {
@@ -312,7 +316,139 @@
             document.getElementById('searchInput').value = '';
             document.getElementById('categoryFilter').value = '';
             document.getElementById('sortOrder').value = 'priority';
+            isDragAndDropEnabled = false;
             fetchTasks();
+        }
+
+        function handleSortChange() {
+            const sortOrder = document.getElementById('sortOrder').value;
+            isDragAndDropEnabled = sortOrder === 'manual';
+            fetchTasks();
+        }
+
+        async function reorderTasks(taskOrders) {
+            try {
+                const res = await fetch('/tasks/reorder', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ taskOrders })
+                });
+                
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return false;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Error reordering tasks:', error);
+                alert('タスクの並び替えに失敗しました');
+                return false;
+            }
+        }
+
+        function makeTaskDraggable(taskElement, task, index) {
+            if (!isDragAndDropEnabled) {
+                taskElement.draggable = false;
+                taskElement.style.cursor = '';
+                return;
+            }
+
+            taskElement.draggable = true;
+            taskElement.style.cursor = 'grab';
+            
+            taskElement.addEventListener('dragstart', (e) => {
+                draggedElement = taskElement;
+                draggedTaskId = task.id;
+                taskElement.style.opacity = '0.5';
+                taskElement.style.cursor = 'grabbing';
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', taskElement.outerHTML);
+            });
+
+            taskElement.addEventListener('dragend', (e) => {
+                taskElement.style.opacity = '';
+                taskElement.style.cursor = 'grab';
+                draggedElement = null;
+                draggedTaskId = null;
+            });
+
+            taskElement.addEventListener('dragover', (e) => {
+                if (draggedElement && draggedElement !== taskElement) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    
+                    const rect = taskElement.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    
+                    if (e.clientY < midY) {
+                        taskElement.style.borderTop = '3px solid #3b82f6';
+                        taskElement.style.borderBottom = '';
+                    } else {
+                        taskElement.style.borderBottom = '3px solid #3b82f6';
+                        taskElement.style.borderTop = '';
+                    }
+                }
+            });
+
+            taskElement.addEventListener('dragleave', (e) => {
+                taskElement.style.borderTop = '';
+                taskElement.style.borderBottom = '';
+            });
+
+            taskElement.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                taskElement.style.borderTop = '';
+                taskElement.style.borderBottom = '';
+                
+                if (draggedElement && draggedElement !== taskElement && draggedTaskId) {
+                    const allTasks = Array.from(document.querySelectorAll('#taskList li'));
+                    const draggedIndex = allTasks.indexOf(draggedElement);
+                    const targetIndex = allTasks.indexOf(taskElement);
+                    
+                    if (draggedIndex !== -1 && targetIndex !== -1 && draggedIndex !== targetIndex) {
+                        // Get drop position (before or after target)
+                        const rect = taskElement.getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+                        const insertAfter = e.clientY >= midY;
+                        
+                        // Calculate new sort orders
+                        const taskOrders = [];
+                        const allTaskElements = Array.from(document.querySelectorAll('#taskList li'));
+                        let newOrder = 1;
+                        
+                        for (let i = 0; i < allTaskElements.length; i++) {
+                            const currentElement = allTaskElements[i];
+                            const currentTaskId = parseInt(currentElement.dataset.taskId);
+                            
+                            if (currentElement === taskElement) {
+                                if (!insertAfter) {
+                                    // Insert dragged task before target
+                                    taskOrders.push({ id: draggedTaskId, sort_order: newOrder++ });
+                                }
+                                if (currentTaskId !== draggedTaskId) {
+                                    taskOrders.push({ id: currentTaskId, sort_order: newOrder++ });
+                                }
+                                if (insertAfter) {
+                                    // Insert dragged task after target
+                                    taskOrders.push({ id: draggedTaskId, sort_order: newOrder++ });
+                                }
+                            } else if (currentElement !== draggedElement) {
+                                taskOrders.push({ id: currentTaskId, sort_order: newOrder++ });
+                            }
+                        }
+                        
+                        // Send reorder request to server
+                        const success = await reorderTasks(taskOrders);
+                        if (success) {
+                            fetchTasks(); // Refresh the task list
+                        }
+                    }
+                }
+            });
         }
 
         async function toggleTaskCompletion(index) {
@@ -483,11 +619,13 @@
             try {
                 const searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
                 const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+                const sortOrder = document.getElementById('sortOrder')?.value || 'priority';
                 
                 // Build query parameters
                 const params = new URLSearchParams();
                 if (searchQuery) params.append('search', searchQuery);
                 if (categoryFilter) params.append('category', categoryFilter);
+                if (sortOrder === 'manual') params.append('sort', 'manual');
                 
                 const url = `/tasks${params.toString() ? '?' + params.toString() : ''}`;
                 
@@ -503,8 +641,7 @@
                 }
                 let tasks = await res.json();
                 
-                // Sort tasks based on selected order (backend handles search/category filtering)
-                const sortOrder = document.getElementById('sortOrder')?.value || 'priority';
+                // Sort tasks based on selected order (backend handles search/category filtering and manual sorting)
                 if (sortOrder === 'created') {
                     tasks = tasks.reverse(); // Since they come pre-sorted by priority, reverse for creation order
                 }
@@ -559,6 +696,7 @@
                         : 'bg-gray-50 border-gray-200 hover:border-blue-300'
                 }`;
                 li.style.animationDelay = `${i * 50}ms`;
+                li.dataset.taskId = task.id;
 
                 const wrapper = document.createElement('div');
                 wrapper.className = 'flex items-center justify-between';
@@ -683,6 +821,9 @@
                 wrapper.appendChild(leftSection);
                 wrapper.appendChild(btnContainer);
                 li.appendChild(wrapper);
+
+                // Make task draggable if drag and drop is enabled
+                makeTaskDraggable(li, task, i);
 
                 list.appendChild(li);
             });

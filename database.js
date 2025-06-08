@@ -15,6 +15,7 @@ function initializeDatabase() {
       due_date TEXT,
       category TEXT,
       completed BOOLEAN DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
       if (err) {
@@ -28,8 +29,11 @@ function initializeDatabase() {
             db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, (categoryErr) => {
               // Add completed column to existing tables if it doesn't exist
               db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, (completedErr) => {
-                // Ignore errors if columns already exist
-                resolve();
+                // Add sort_order column to existing tables if it doesn't exist
+                db.run(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`, (sortOrderErr) => {
+                  // Ignore errors if columns already exist
+                  resolve();
+                });
               });
             });
           });
@@ -39,7 +43,7 @@ function initializeDatabase() {
   });
 }
 
-function getAllTasks(searchQuery = null, categoryFilter = null) {
+function getAllTasks(searchQuery = null, categoryFilter = null, sortBy = 'priority') {
   return new Promise((resolve, reject) => {
     let query = `SELECT * FROM tasks`;
     const params = [];
@@ -59,15 +63,20 @@ function getAllTasks(searchQuery = null, categoryFilter = null) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ` ORDER BY 
-              completed ASC,
-              CASE priority 
-                WHEN 'high' THEN 1 
-                WHEN 'medium' THEN 2 
-                WHEN 'low' THEN 3 
-                ELSE 2 
-              END, 
-              created_at`;
+    // Sort by drag-and-drop order first, then by other criteria
+    if (sortBy === 'manual') {
+      query += ` ORDER BY completed ASC, sort_order ASC`;
+    } else {
+      query += ` ORDER BY 
+                completed ASC,
+                CASE priority 
+                  WHEN 'high' THEN 1 
+                  WHEN 'medium' THEN 2 
+                  WHEN 'low' THEN 3 
+                  ELSE 2 
+                END, 
+                created_at`;
+    }
 
     db.all(query, params, (err, rows) => {
       if (err) {
@@ -81,12 +90,31 @@ function getAllTasks(searchQuery = null, categoryFilter = null) {
 
 function addTask(text, priority = 'medium', dueDate = null, category = null) {
   return new Promise((resolve, reject) => {
-    db.run('INSERT INTO tasks (text, priority, due_date, category, completed) VALUES (?, ?, ?, ?, 0)', [text, priority, dueDate, category], function(err) {
+    // Get the next sort order (highest current sort_order + 1)
+    db.get('SELECT MAX(sort_order) as max_sort FROM tasks', (err, row) => {
       if (err) {
         reject(err);
-      } else {
-        resolve({ id: this.lastID, text, priority, due_date: dueDate, category, completed: false, created_at: new Date().toISOString() });
+        return;
       }
+      const nextSortOrder = (row.max_sort || 0) + 1;
+      
+      db.run('INSERT INTO tasks (text, priority, due_date, category, completed, sort_order) VALUES (?, ?, ?, ?, 0, ?)', 
+        [text, priority, dueDate, category, nextSortOrder], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ 
+            id: this.lastID, 
+            text, 
+            priority, 
+            due_date: dueDate, 
+            category, 
+            completed: false, 
+            sort_order: nextSortOrder,
+            created_at: new Date().toISOString() 
+          });
+        }
+      });
     });
   });
 }
@@ -153,6 +181,46 @@ function toggleTaskCompletion(id) {
   });
 }
 
+function reorderTasks(taskOrders) {
+  return new Promise((resolve, reject) => {
+    const stmt = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ?');
+    
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      
+      let error = null;
+      let completed = 0;
+      const total = taskOrders.length;
+      
+      taskOrders.forEach(({ id, sort_order }) => {
+        stmt.run([sort_order, id], function(err) {
+          if (err && !error) {
+            error = err;
+          }
+          completed++;
+          
+          if (completed === total) {
+            stmt.finalize();
+            if (error) {
+              db.run('ROLLBACK');
+              reject(error);
+            } else {
+              db.run('COMMIT');
+              resolve(true);
+            }
+          }
+        });
+      });
+      
+      if (total === 0) {
+        stmt.finalize();
+        db.run('COMMIT');
+        resolve(true);
+      }
+    });
+  });
+}
+
 function getAllCategories() {
   return new Promise((resolve, reject) => {
     db.all(`SELECT DISTINCT category FROM tasks WHERE category IS NOT NULL AND category != '' ORDER BY category`, (err, rows) => {
@@ -172,5 +240,6 @@ module.exports = {
   deleteTask,
   updateTask,
   toggleTaskCompletion,
+  reorderTasks,
   getAllCategories
 };

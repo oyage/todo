@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, getAllCategories } = require('./database');
+const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, reorderTasks, getAllCategories } = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -23,15 +23,16 @@ function authenticateToken(req, res, next) {
 
 app.get('/tasks', authenticateToken, async (req, res) => {
   try {
-    const { search, category } = req.query;
-    const tasks = await getAllTasks(search, category);
+    const { search, category, sort } = req.query;
+    const tasks = await getAllTasks(search, category, sort);
     res.json(tasks.map(task => ({ 
       id: task.id,
       text: task.text, 
       priority: task.priority || 'medium',
       due_date: task.due_date,
       category: task.category,
-      completed: Boolean(task.completed)
+      completed: Boolean(task.completed),
+      sort_order: task.sort_order
     })));
   } catch (err) {
     console.error('Error in GET /tasks:', err);
@@ -198,6 +199,32 @@ app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
     res.json({ message: `${updatedCount} tasks updated` });
   } catch (err) {
     console.error('Error in POST /tasks/bulk-complete:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/tasks/reorder', authenticateToken, async (req, res) => {
+  try {
+    const { taskOrders } = req.body;
+    if (!Array.isArray(taskOrders) || taskOrders.length === 0) {
+      return res.status(400).json({ error: 'invalid taskOrders array' });
+    }
+    
+    // Validate each task order object
+    for (const item of taskOrders) {
+      if (!Number.isInteger(item.id) || !Number.isInteger(item.sort_order)) {
+        return res.status(400).json({ error: 'invalid task order format' });
+      }
+    }
+    
+    const updated = await reorderTasks(taskOrders);
+    if (!updated) {
+      return res.status(500).json({ error: 'failed to reorder tasks' });
+    }
+    
+    res.json({ message: 'tasks reordered successfully' });
+  } catch (err) {
+    console.error('Error in POST /tasks/reorder:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
