@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     animation: {
@@ -51,12 +52,22 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
     <div class="container mx-auto px-4 py-4 sm:py-8 max-w-2xl">
-        <div class="bg-white rounded-2xl shadow-xl p-4 sm:p-8 animate-fade-in">
-            <h1 class="text-2xl sm:text-4xl font-bold text-center mb-4 sm:mb-8 text-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                TODOアプリ
-            </h1>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-4 sm:p-8 animate-fade-in transition-colors duration-300">
+            <div class="flex justify-between items-center mb-4 sm:mb-8">
+                <h1 class="text-2xl sm:text-4xl font-bold text-center flex-1 text-gray-800 dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    TODOアプリ
+                </h1>
+                <button 
+                    id="themeToggle"
+                    onclick="toggleTheme()"
+                    class="ml-4 p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
+                    title="テーマを切り替え"
+                >
+                    <span id="themeIcon" class="text-xl">🌙</span>
+                </button>
+            </div>
             
             <div class="mb-4 sm:mb-8">
                 <div class="space-y-3">
@@ -65,11 +76,11 @@
                             type="text" 
                             id="newTask" 
                             placeholder="新しいタスクを入力..." 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-300 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                         >
                         <select 
                             id="prioritySelect" 
-                            class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 min-w-0 sm:min-w-fit"
+                            class="px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors duration-200 text-gray-700 min-w-0 sm:min-w-fit"
                         >
                             <option value="high">🔴 高</option>
                             <option value="medium" selected>🟡 中</option>
@@ -80,21 +91,21 @@
                         <input 
                             type="date" 
                             id="dueDateInput" 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 text-base"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors duration-200 text-gray-700 text-base"
                             title="期限日を設定（任意）"
                         >
                         <input 
                             type="text" 
                             id="categoryInput" 
                             placeholder="カテゴリ（任意）" 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-300 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                             list="categoryList"
                             maxlength="50"
                         >
                         <datalist id="categoryList"></datalist>
                         <button 
                             onclick="addTask()" 
-                            class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-base touch-manipulation"
+                            class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-base touch-manipulation"
                         >
                             追加
                         </button>
@@ -105,7 +116,7 @@
             <div class="mb-6">
                 <div class="flex justify-between items-center mb-4">
                     <div class="flex items-center gap-3">
-                        <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
+                        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">タスク一覧</h2>
                         <div class="flex items-center gap-2">
                             <input 
                                 type="checkbox" 
@@ -113,15 +124,15 @@
                                 class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                                 onchange="toggleSelectAll()"
                             >
-                            <label for="selectAllCheckbox" class="text-sm text-gray-600 cursor-pointer">すべて選択</label>
+                            <label for="selectAllCheckbox" class="text-sm text-gray-600 dark:text-gray-300 cursor-pointer">すべて選択</label>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Bulk Actions Bar (hidden by default) -->
-                <div id="bulkActionsBar" class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 hidden">
+                <div id="bulkActionsBar" class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl p-3 mb-4 hidden">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <span id="selectedCount" class="text-sm text-blue-700 font-medium text-center sm:text-left">0個のタスクが選択されています</span>
+                        <span id="selectedCount" class="text-sm text-blue-700 dark:text-blue-300 font-medium text-center sm:text-left">0個のタスクが選択されています</span>
                         <div class="flex flex-col sm:flex-row gap-2">
                             <button 
                                 onclick="bulkComplete()" 
@@ -146,7 +157,7 @@
                 </div>
                 
                 <!-- Search and Filter Controls -->
-                <div class="bg-gray-50 rounded-xl p-3 sm:p-4 mb-4">
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 sm:p-4 mb-4">
                     <div class="space-y-3 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-3 sm:items-center">
                         <div class="w-full sm:flex-1 sm:min-w-0">
                             <div class="relative">
@@ -154,7 +165,7 @@
                                     type="text" 
                                     id="searchInput" 
                                     placeholder="🔍 タスクを検索..." 
-                                    class="w-full px-4 py-3 sm:py-2 pl-10 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
+                                    class="w-full px-4 py-3 sm:py-2 pl-10 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-300 rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                                     oninput="debounceSearch()"
                                 >
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -164,21 +175,21 @@
                         </div>
                         <div class="flex flex-col sm:flex-row gap-3 sm:gap-2 sm:items-center">
                             <div class="flex gap-2 items-center">
-                                <label for="categoryFilter" class="text-sm text-gray-600 whitespace-nowrap min-w-fit">カテゴリ:</label>
+                                <label for="categoryFilter" class="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap min-w-fit">カテゴリ:</label>
                                 <select 
                                     id="categoryFilter" 
                                     onchange="fetchTasks()" 
-                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
                                 >
                                     <option value="">すべて</option>
                                 </select>
                             </div>
                             <div class="flex gap-2 items-center">
-                                <label for="sortOrder" class="text-sm text-gray-600 whitespace-nowrap min-w-fit">並び順:</label>
+                                <label for="sortOrder" class="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap min-w-fit">並び順:</label>
                                 <select 
                                     id="sortOrder" 
                                     onchange="handleSortChange()" 
-                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg text-sm focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
                                 >
                                     <option value="priority">優先度順</option>
                                     <option value="created">作成日順</option>
@@ -187,7 +198,7 @@
                             </div>
                             <button 
                                 onclick="clearFilters()" 
-                                class="w-full sm:w-auto px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-sm font-medium touch-manipulation"
+                                class="w-full sm:w-auto px-3 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors duration-200 text-sm font-medium touch-manipulation"
                             >
                                 🗑️ クリア
                             </button>
@@ -205,6 +216,45 @@
         let isDragAndDropEnabled = false;
         let draggedElement = null;
         let draggedTaskId = null;
+        
+        // Theme management
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const shouldUseDark = savedTheme === 'dark' || (!savedTheme && systemPrefersDark);
+            
+            if (shouldUseDark) {
+                document.documentElement.classList.add('dark');
+                updateThemeIcon(true);
+            } else {
+                document.documentElement.classList.remove('dark');
+                updateThemeIcon(false);
+            }
+        }
+        
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            
+            if (isDark) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                updateThemeIcon(false);
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                updateThemeIcon(true);
+            }
+        }
+        
+        function updateThemeIcon(isDark) {
+            const themeIcon = document.getElementById('themeIcon');
+            if (themeIcon) {
+                themeIcon.textContent = isDark ? '☀️' : '🌙';
+            }
+        }
+        
+        // Initialize theme on page load
+        initializeTheme();
         
         function getAuthHeaders() {
             return {
@@ -284,14 +334,14 @@
             }
             
             const colors = [
-                'bg-blue-100 text-blue-800',
-                'bg-green-100 text-green-800',
-                'bg-purple-100 text-purple-800',
-                'bg-pink-100 text-pink-800',
-                'bg-indigo-100 text-indigo-800',
-                'bg-yellow-100 text-yellow-800',
-                'bg-teal-100 text-teal-800',
-                'bg-orange-100 text-orange-800'
+                'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+                'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+                'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300',
+                'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300',
+                'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300',
+                'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+                'bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300',
+                'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300'
             ];
             
             return colors[Math.abs(hash) % colors.length];
@@ -726,7 +776,7 @@
                 
                 if (tasks.length === 0) {
                     const emptyState = document.createElement('div');
-                    emptyState.className = 'text-center py-12 text-gray-500';
+                    emptyState.className = 'text-center py-12 text-gray-500 dark:text-gray-400';
 
                     const icon = document.createElement('div');
                     icon.className = 'text-6xl mb-4';
@@ -764,8 +814,8 @@
                 const li = document.createElement('li');
                 li.className = `rounded-xl p-3 sm:p-4 border transition-all duration-200 animate-slide-in ${
                     task.completed 
-                        ? 'bg-gray-100 border-gray-300 opacity-75' 
-                        : 'bg-gray-50 border-gray-200 hover:border-blue-300'
+                        ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 opacity-75' 
+                        : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500'
                 }`;
                 li.style.animationDelay = `${i * 50}ms`;
                 li.dataset.taskId = task.id;
@@ -779,7 +829,7 @@
                 // Checkbox for selection
                 const selectCheckbox = document.createElement('input');
                 selectCheckbox.type = 'checkbox';
-                selectCheckbox.className = 'mr-2 h-5 w-5 sm:h-4 sm:w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer task-select-checkbox touch-manipulation';
+                selectCheckbox.className = 'mr-2 h-5 w-5 sm:h-4 sm:w-4 text-purple-600 focus:ring-purple-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:checked:bg-purple-600 rounded cursor-pointer task-select-checkbox touch-manipulation';
                 selectCheckbox.dataset.taskIndex = i;
                 selectCheckbox.addEventListener('change', updateSelectionState);
 
@@ -787,7 +837,7 @@
                 const completionCheckbox = document.createElement('input');
                 completionCheckbox.type = 'checkbox';
                 completionCheckbox.checked = task.completed;
-                completionCheckbox.className = 'mr-3 h-6 w-6 sm:h-5 sm:w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer touch-manipulation';
+                completionCheckbox.className = 'mr-3 h-6 w-6 sm:h-5 sm:w-5 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:checked:bg-blue-600 rounded cursor-pointer touch-manipulation';
                 completionCheckbox.addEventListener('change', () => toggleTaskCompletion(i));
 
                 const taskContent = document.createElement('div');
@@ -803,20 +853,20 @@
                 // Priority-specific styling
                 switch(task.priority) {
                     case 'high':
-                        priorityBadge.className += ' bg-red-100 text-red-800';
+                        priorityBadge.className += ' bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
                         break;
                     case 'medium':
-                        priorityBadge.className += ' bg-yellow-100 text-yellow-800';
+                        priorityBadge.className += ' bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
                         break;
                     case 'low':
-                        priorityBadge.className += ' bg-green-100 text-green-800';
+                        priorityBadge.className += ' bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
                         break;
                     default:
-                        priorityBadge.className += ' bg-yellow-100 text-yellow-800';
+                        priorityBadge.className += ' bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
                 }
 
                 const span = document.createElement('span');
-                span.className = `font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-800'}`;
+                span.className = `font-medium ${task.completed ? 'text-gray-500 dark:text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`;
                 span.textContent = task.text;
                 
                 topRow.appendChild(priorityBadge);
@@ -845,19 +895,19 @@
                     let deadlineClass = '';
                     switch(status) {
                         case 'overdue':
-                            deadlineClass = task.completed ? 'text-gray-400' : 'text-red-600 font-semibold';
+                            deadlineClass = task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-red-600 dark:text-red-400 font-semibold';
                             break;
                         case 'today':
-                            deadlineClass = task.completed ? 'text-gray-400' : 'text-red-500 font-semibold';
+                            deadlineClass = task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-red-500 dark:text-red-400 font-semibold';
                             break;
                         case 'tomorrow':
-                            deadlineClass = task.completed ? 'text-gray-400' : 'text-orange-500 font-medium';
+                            deadlineClass = task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-orange-500 dark:text-orange-400 font-medium';
                             break;
                         case 'soon':
-                            deadlineClass = task.completed ? 'text-gray-400' : 'text-yellow-600 font-medium';
+                            deadlineClass = task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-yellow-600 dark:text-yellow-400 font-medium';
                             break;
                         default:
-                            deadlineClass = task.completed ? 'text-gray-400' : 'text-gray-600';
+                            deadlineClass = task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300';
                     }
                     
                     if (task.completed) {
@@ -878,12 +928,12 @@
                 btnContainer.className = 'flex gap-2 w-full sm:w-auto';
 
                 const editBtn = document.createElement('button');
-                editBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
+                editBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
                 editBtn.textContent = '✏️ 編集';
                 editBtn.addEventListener('click', () => editTask(i, task));
 
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
+                deleteBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
                 deleteBtn.textContent = '🗑️ 削除';
                 deleteBtn.addEventListener('click', () => deleteTask(i));
 
