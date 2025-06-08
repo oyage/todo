@@ -303,6 +303,14 @@
                                 <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Enter</kbd>
                             </div>
                             <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">編集を保存</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Ctrl+Enter</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
+                                <span class="text-gray-600 dark:text-gray-400">編集をキャンセル</span>
+                                <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Esc</kbd>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
                                 <span class="text-gray-600 dark:text-gray-400">タスクを削除</span>
                                 <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">Del</kbd>
                             </div>
@@ -1393,56 +1401,193 @@
                 alert('タスクの削除に失敗しました');
             }
         }
+        let currentlyEditingIndex = -1;
+        
         async function editTask(index, currentTask) {
-            const newTask = prompt('タスクを編集:', currentTask.text);
-            if (!newTask || newTask.trim() === currentTask.text) return;
-            
-            // Priority selection dialog
-            const priorityChoice = prompt(
-                `優先度を選択してください:\n1: 🔴 高\n2: 🟡 中\n3: 🟢 低\n\n現在: ${getPriorityLabel(currentTask.priority)}\n\n数字を入力 (1-3):`
-            );
-            
-            let priority = currentTask.priority;
-            if (priorityChoice === '1') priority = 'high';
-            else if (priorityChoice === '2') priority = 'medium';
-            else if (priorityChoice === '3') priority = 'low';
-            
-            // Due date selection dialog
-            const currentDueDate = currentTask.due_date || '';
-            const dueDateChoice = prompt(
-                `期限日を設定してください (YYYY-MM-DD形式):\n\n現在: ${currentDueDate || '設定なし'}\n\n空白で期限なし:`
-            );
-            
-            let dueDate = currentTask.due_date;
-            if (dueDateChoice !== null) {
-                dueDate = dueDateChoice.trim() || null;
+            // Prevent multiple simultaneous edits
+            if (currentlyEditingIndex !== -1) {
+                return;
             }
             
-            // Category selection dialog
-            const currentCategory = currentTask.category || '';
-            const categoryChoice = prompt(
-                `カテゴリを設定してください:\n\n現在: ${currentCategory || '設定なし'}\n\n空白でカテゴリなし:`
-            );
-            
-            let category = currentTask.category;
-            if (categoryChoice !== null) {
-                category = categoryChoice.trim() || null;
+            currentlyEditingIndex = index;
+            const taskElement = document.querySelectorAll('#taskList li')[index];
+            if (!taskElement) {
+                currentlyEditingIndex = -1;
+                return;
             }
             
-            // Completion status dialog
-            const completionChoice = confirm(
-                `完了状態を設定してください:\n\n現在: ${currentTask.completed ? '完了' : '未完了'}\n\n「OK」で完了、「キャンセル」で未完了`
-            );
+            // Hide the original task content and show inline edit form
+            const originalContent = taskElement.innerHTML;
+            taskElement.innerHTML = createInlineEditForm(currentTask, index);
             
-            const completed = completionChoice;
+            // Focus on the text input
+            const textInput = taskElement.querySelector('.inline-edit-text');
+            if (textInput) {
+                textInput.focus();
+                textInput.select();
+            }
+            
+            // Set up event handlers for save/cancel
+            setupInlineEditHandlers(taskElement, index, currentTask, originalContent);
+        }
+        
+        function createInlineEditForm(task, index) {
+            const priorityOptions = [
+                { value: 'high', label: '🔴 高', selected: task.priority === 'high' },
+                { value: 'medium', label: '🟡 中', selected: task.priority === 'medium' },
+                { value: 'low', label: '🟢 低', selected: task.priority === 'low' }
+            ].map(opt => `<option value="${opt.value}" ${opt.selected ? 'selected' : ''}>${opt.label}</option>`).join('');
+            
+            return `
+                <div class="bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-600 rounded-xl p-4 space-y-3 animate-fade-in">
+                    <div class="text-sm font-medium text-blue-800 dark:text-blue-300 mb-3">タスクを編集</div>
+                    
+                    <!-- Task Text -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">タスク内容</label>
+                        <input type="text" 
+                               class="inline-edit-text w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-sm"
+                               value="${task.text.replace(/"/g, '&quot;')}"
+                               maxlength="200">
+                    </div>
+                    
+                    <!-- Priority and Completion Status Row -->
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">優先度</label>
+                            <select class="inline-edit-priority w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-sm">
+                                ${priorityOptions}
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">完了状態</label>
+                            <select class="inline-edit-completed w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-sm">
+                                <option value="false" ${!task.completed ? 'selected' : ''}>未完了</option>
+                                <option value="true" ${task.completed ? 'selected' : ''}>完了</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Due Date and Category Row -->
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">期限日</label>
+                            <input type="date" 
+                                   class="inline-edit-due-date w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-sm"
+                                   value="${task.due_date || ''}">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">カテゴリ</label>
+                            <input type="text" 
+                                   class="inline-edit-category w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-sm"
+                                   value="${task.category || ''}"
+                                   placeholder="カテゴリ名"
+                                   maxlength="50">
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                        <button class="inline-edit-save flex-1 sm:flex-none px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0">
+                            ✓ 保存
+                        </button>
+                        <button class="inline-edit-cancel flex-1 sm:flex-none px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0">
+                            ✕ キャンセル
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function setupInlineEditHandlers(taskElement, index, originalTask, originalContent) {
+            const saveBtn = taskElement.querySelector('.inline-edit-save');
+            const cancelBtn = taskElement.querySelector('.inline-edit-cancel');
+            const textInput = taskElement.querySelector('.inline-edit-text');
+            
+            // Save handler
+            const saveHandler = async () => {
+                await saveInlineEdit(taskElement, index, originalTask);
+            };
+            
+            // Cancel handler
+            const cancelHandler = () => {
+                cancelInlineEdit(taskElement, originalContent);
+            };
+            
+            // Keyboard handlers
+            const keyHandler = (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    e.preventDefault();
+                    saveHandler();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelHandler();
+                }
+            };
+            
+            // Add event listeners
+            saveBtn.addEventListener('click', saveHandler);
+            cancelBtn.addEventListener('click', cancelHandler);
+            textInput.addEventListener('keydown', keyHandler);
+            
+            // Also add keydown to other inputs for escape functionality
+            const inputs = taskElement.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('keydown', keyHandler);
+            });
+        }
+        
+        async function saveInlineEdit(taskElement, index, originalTask) {
+            const textInput = taskElement.querySelector('.inline-edit-text');
+            const prioritySelect = taskElement.querySelector('.inline-edit-priority');
+            const completedSelect = taskElement.querySelector('.inline-edit-completed');
+            const dueDateInput = taskElement.querySelector('.inline-edit-due-date');
+            const categoryInput = taskElement.querySelector('.inline-edit-category');
+            
+            const newText = textInput.value.trim();
+            const newPriority = prioritySelect.value;
+            const newCompleted = completedSelect.value === 'true';
+            const newDueDate = dueDateInput.value || null;
+            const newCategory = categoryInput.value.trim() || null;
+            
+            // Validate inputs
+            if (!newText) {
+                textInput.focus();
+                textInput.classList.add('border-red-500');
+                setTimeout(() => textInput.classList.remove('border-red-500'), 3000);
+                return;
+            }
+            
+            // Check if anything actually changed
+            const hasChanges = newText !== originalTask.text || 
+                             newPriority !== originalTask.priority ||
+                             newCompleted !== originalTask.completed ||
+                             newDueDate !== originalTask.due_date ||
+                             newCategory !== originalTask.category;
+            
+            if (!hasChanges) {
+                cancelInlineEdit(taskElement, null);
+                return;
+            }
+            
+            // Show loading state
+            const saveBtn = taskElement.querySelector('.inline-edit-save');
+            const originalSaveText = saveBtn.textContent;
+            saveBtn.textContent = '保存中...';
+            saveBtn.disabled = true;
             
             try {
-                const requestBody = { task: newTask.trim(), priority, completed };
-                if (dueDate !== undefined) {
-                    requestBody.due_date = dueDate;
+                const requestBody = { 
+                    task: newText, 
+                    priority: newPriority, 
+                    completed: newCompleted 
+                };
+                
+                if (newDueDate !== undefined) {
+                    requestBody.due_date = newDueDate;
                 }
-                if (category !== undefined) {
-                    requestBody.category = category;
+                if (newCategory !== undefined) {
+                    requestBody.category = newCategory;
                 }
                 
                 const res = await fetch(`/tasks/${index}`, { 
@@ -1450,6 +1595,7 @@
                     headers: getAuthHeaders(), 
                     body: JSON.stringify(requestBody) 
                 });
+                
                 if (!res.ok) {
                     if (res.status === 401) {
                         alert('認証エラー: トークンが無効です');
@@ -1457,10 +1603,35 @@
                     }
                     throw new Error(`HTTP error! status: ${res.status}`);
                 }
-                fetchTasks();
+                
+                // Reset editing state and refresh tasks
+                currentlyEditingIndex = -1;
+                await fetchTasks();
+                
             } catch (error) {
-                console.error('Error editing task:', error);
+                console.error('Error saving task edit:', error);
                 alert('タスクの編集に失敗しました');
+                
+                // Restore save button
+                saveBtn.textContent = originalSaveText;
+                saveBtn.disabled = false;
+            }
+        }
+        
+        function cancelInlineEdit(taskElement, originalContent) {
+            currentlyEditingIndex = -1;
+            if (originalContent) {
+                taskElement.innerHTML = originalContent;
+                
+                // Re-setup event handlers for the restored buttons
+                const editBtn = taskElement.querySelector('button[onclick*="editTask"]');
+                const deleteBtn = taskElement.querySelector('button[onclick*="deleteTask"]');
+                if (editBtn && deleteBtn) {
+                    // The onclick handlers are restored with innerHTML, so no need to re-add them
+                }
+            } else {
+                // If no original content, refresh the tasks
+                fetchTasks();
             }
         }
         
