@@ -323,11 +323,13 @@
         function handleSortChange() {
             const sortOrder = document.getElementById('sortOrder').value;
             isDragAndDropEnabled = sortOrder === 'manual';
+            console.log('Sort order changed to:', sortOrder, 'Drag enabled:', isDragAndDropEnabled);
             fetchTasks();
         }
 
         async function reorderTasks(taskOrders) {
             try {
+                console.log('Reordering tasks:', taskOrders);
                 const res = await fetch('/tasks/reorder', {
                     method: 'POST',
                     headers: getAuthHeaders(),
@@ -339,13 +341,17 @@
                         alert('認証エラー: トークンが無効です');
                         return false;
                     }
-                    throw new Error(`HTTP error! status: ${res.status}`);
+                    const errorText = await res.text();
+                    console.error('Server error:', res.status, errorText);
+                    throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
                 }
                 
+                const result = await res.json();
+                console.log('Reorder result:', result);
                 return true;
             } catch (error) {
                 console.error('Error reordering tasks:', error);
-                alert('タスクの並び替えに失敗しました');
+                alert('タスクの並び替えに失敗しました: ' + error.message);
                 return false;
             }
         }
@@ -354,11 +360,20 @@
             if (!isDragAndDropEnabled) {
                 taskElement.draggable = false;
                 taskElement.style.cursor = '';
-                return;
+                // Remove drag-related attributes
+                taskElement.removeAttribute('data-drag-listeners');
+                return taskElement;
             }
 
+            // Check if drag listeners are already attached
+            if (taskElement.hasAttribute('data-drag-listeners')) {
+                return taskElement;
+            }
+
+            console.log('Making task draggable:', task.text, 'ID:', task.id);
             taskElement.draggable = true;
             taskElement.style.cursor = 'grab';
+            taskElement.setAttribute('data-drag-listeners', 'true');
             
             taskElement.addEventListener('dragstart', (e) => {
                 draggedElement = taskElement;
@@ -366,12 +381,18 @@
                 taskElement.style.opacity = '0.5';
                 taskElement.style.cursor = 'grabbing';
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/html', taskElement.outerHTML);
+                e.dataTransfer.setData('text/plain', task.id.toString());
             });
 
             taskElement.addEventListener('dragend', (e) => {
                 taskElement.style.opacity = '';
                 taskElement.style.cursor = 'grab';
+                // Clean up visual indicators
+                const allElements = document.querySelectorAll('#taskList li');
+                allElements.forEach(el => {
+                    el.style.borderTop = '';
+                    el.style.borderBottom = '';
+                });
                 draggedElement = null;
                 draggedTaskId = null;
             });
@@ -380,6 +401,15 @@
                 if (draggedElement && draggedElement !== taskElement) {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
+                    
+                    // Clear borders on all elements first
+                    const allElements = document.querySelectorAll('#taskList li');
+                    allElements.forEach(el => {
+                        if (el !== taskElement) {
+                            el.style.borderTop = '';
+                            el.style.borderBottom = '';
+                        }
+                    });
                     
                     const rect = taskElement.getBoundingClientRect();
                     const midY = rect.top + rect.height / 2;
@@ -394,15 +424,15 @@
                 }
             });
 
-            taskElement.addEventListener('dragleave', (e) => {
-                taskElement.style.borderTop = '';
-                taskElement.style.borderBottom = '';
-            });
-
             taskElement.addEventListener('drop', async (e) => {
                 e.preventDefault();
-                taskElement.style.borderTop = '';
-                taskElement.style.borderBottom = '';
+                
+                // Clear all visual indicators
+                const allElements = document.querySelectorAll('#taskList li');
+                allElements.forEach(el => {
+                    el.style.borderTop = '';
+                    el.style.borderBottom = '';
+                });
                 
                 if (draggedElement && draggedElement !== taskElement && draggedTaskId) {
                     const allTasks = Array.from(document.querySelectorAll('#taskList li'));
@@ -415,31 +445,34 @@
                         const midY = rect.top + rect.height / 2;
                         const insertAfter = e.clientY >= midY;
                         
-                        // Calculate new sort orders
-                        const taskOrders = [];
-                        const allTaskElements = Array.from(document.querySelectorAll('#taskList li'));
-                        let newOrder = 1;
-                        
-                        for (let i = 0; i < allTaskElements.length; i++) {
-                            const currentElement = allTaskElements[i];
-                            const currentTaskId = parseInt(currentElement.dataset.taskId);
-                            
-                            if (currentElement === taskElement) {
-                                if (!insertAfter) {
-                                    // Insert dragged task before target
-                                    taskOrders.push({ id: draggedTaskId, sort_order: newOrder++ });
-                                }
-                                if (currentTaskId !== draggedTaskId) {
-                                    taskOrders.push({ id: currentTaskId, sort_order: newOrder++ });
-                                }
-                                if (insertAfter) {
-                                    // Insert dragged task after target
-                                    taskOrders.push({ id: draggedTaskId, sort_order: newOrder++ });
-                                }
-                            } else if (currentElement !== draggedElement) {
-                                taskOrders.push({ id: currentTaskId, sort_order: newOrder++ });
+                        // Create new order array
+                        const currentTasks = [];
+                        allTasks.forEach(el => {
+                            const taskId = parseInt(el.dataset.taskId);
+                            if (!isNaN(taskId)) {
+                                currentTasks.push(taskId);
                             }
+                        });
+                        
+                        // Remove dragged task from current position
+                        const draggedTaskIndex = currentTasks.indexOf(draggedTaskId);
+                        if (draggedTaskIndex > -1) {
+                            currentTasks.splice(draggedTaskIndex, 1);
                         }
+                        
+                        // Find target task in the array
+                        const targetTaskId = parseInt(taskElement.dataset.taskId);
+                        const targetTaskIndex = currentTasks.indexOf(targetTaskId);
+                        
+                        // Insert dragged task at new position
+                        const insertIndex = insertAfter ? targetTaskIndex + 1 : targetTaskIndex;
+                        currentTasks.splice(insertIndex, 0, draggedTaskId);
+                        
+                        // Create task orders array
+                        const taskOrders = currentTasks.map((id, index) => ({
+                            id: id,
+                            sort_order: index + 1
+                        }));
                         
                         // Send reorder request to server
                         const success = await reorderTasks(taskOrders);

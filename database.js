@@ -183,40 +183,54 @@ function toggleTaskCompletion(id) {
 
 function reorderTasks(taskOrders) {
   return new Promise((resolve, reject) => {
-    const stmt = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ?');
-    
+    if (!Array.isArray(taskOrders) || taskOrders.length === 0) {
+      resolve(true);
+      return;
+    }
+
     db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-      
-      let error = null;
-      let completed = 0;
-      const total = taskOrders.length;
-      
-      taskOrders.forEach(({ id, sort_order }) => {
-        stmt.run([sort_order, id], function(err) {
-          if (err && !error) {
-            error = err;
-          }
-          completed++;
-          
-          if (completed === total) {
-            stmt.finalize();
-            if (error) {
-              db.run('ROLLBACK');
-              reject(error);
-            } else {
-              db.run('COMMIT');
-              resolve(true);
+      db.run('BEGIN TRANSACTION', (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const stmt = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ?');
+        let error = null;
+        let completed = 0;
+        const total = taskOrders.length;
+        
+        taskOrders.forEach(({ id, sort_order }) => {
+          stmt.run([sort_order, id], function(err) {
+            if (err && !error) {
+              error = err;
             }
-          }
+            completed++;
+            
+            if (completed === total) {
+              stmt.finalize((finalizeErr) => {
+                if (finalizeErr && !error) {
+                  error = finalizeErr;
+                }
+                
+                if (error) {
+                  db.run('ROLLBACK', () => {
+                    reject(error);
+                  });
+                } else {
+                  db.run('COMMIT', (commitErr) => {
+                    if (commitErr) {
+                      reject(commitErr);
+                    } else {
+                      resolve(true);
+                    }
+                  });
+                }
+              });
+            }
+          });
         });
       });
-      
-      if (total === 0) {
-        stmt.finalize();
-        db.run('COMMIT');
-        resolve(true);
-      }
     });
   });
 }
