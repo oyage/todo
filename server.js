@@ -5,7 +5,9 @@ const https = require('https');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, reorderTasks, getAllCategories } = require('./database');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, reorderTasks, getAllCategories, createUser, getUserByEmail, getUserByUsername, getUserById } = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
@@ -257,6 +259,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 const BEARER_TOKEN = process.env.BEARER_TOKEN || 'your-secret-token';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // メモリキャッシュの設定
 const taskCache = new Map();
@@ -289,19 +293,208 @@ function authenticateToken(req, res, next) {
       return res.status(401).json(ErrorResponse.unauthorized('Invalid authorization header format'));
     }
     
-    if (token !== BEARER_TOKEN) {
-      Logger.warn('Authentication failed: Invalid token', { requestId: req.requestId, tokenLength: token.length });
-      return res.status(401).json(ErrorResponse.unauthorized('Invalid token'));
-    }
-    
-    Logger.info('Authentication successful', { requestId: req.requestId });
-    next();
+    // JWT verification
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+      if (err) {
+        Logger.warn('Authentication failed: Invalid JWT token', { requestId: req.requestId, error: err.message });
+        return res.status(401).json(ErrorResponse.unauthorized('Invalid token'));
+      }
+      
+      req.user = decoded; // Add user info to request
+      Logger.info('Authentication successful', { requestId: req.requestId, userId: decoded.userId });
+      next();
+    });
   } catch (error) {
     Logger.error('Authentication error', error, { requestId: req.requestId });
     return res.status(500).json(ErrorResponse.serverError('Authentication service error', req.requestId));
   }
 }
 
+// Optional: Keep bearer token authentication for backward compatibility
+function authenticateBearerToken(req, res, next) {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!authHeader) {
+      Logger.warn('Bearer authentication failed: No authorization header', { requestId: req.requestId });
+      return res.status(401).json(ErrorResponse.unauthorized('No authorization header provided'));
+    }
+    
+    if (!token) {
+      Logger.warn('Bearer authentication failed: No token in header', { requestId: req.requestId });
+      return res.status(401).json(ErrorResponse.unauthorized('Invalid authorization header format'));
+    }
+    
+    if (token !== BEARER_TOKEN) {
+      Logger.warn('Bearer authentication failed: Invalid token', { requestId: req.requestId, tokenLength: token.length });
+      return res.status(401).json(ErrorResponse.unauthorized('Invalid token'));
+    }
+    
+    Logger.info('Bearer authentication successful', { requestId: req.requestId });
+    next();
+  } catch (error) {
+    Logger.error('Bearer authentication error', error, { requestId: req.requestId });
+    return res.status(500).json(ErrorResponse.serverError('Authentication service error', req.requestId));
+  }
+}
+
+// User authentication endpoints
+app.post('/auth/register', authLimiter, async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    
+    // Validation
+    const validationErrors = [];
+    
+    if (!username || typeof username !== 'string' || !username.trim()) {
+      validationErrors.push('Username is required');
+    } else if (username.trim().length < 3) {
+      validationErrors.push('Username must be at least 3 characters long');
+    } else if (username.trim().length > 30) {
+      validationErrors.push('Username cannot exceed 30 characters');
+    }
+    
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      validationErrors.push('Email is required');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      validationErrors.push('Invalid email format');
+    }
+    
+    if (!password || typeof password !== 'string') {
+      validationErrors.push('Password is required');
+    } else if (password.length < 6) {
+      validationErrors.push('Password must be at least 6 characters long');
+    }
+    
+    if (validationErrors.length > 0) {
+      Logger.warn('User registration validation failed', { requestId: req.requestId, errors: validationErrors });
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
+    }
+    
+    // Check if user already exists
+    const existingUserByEmail = await getUserByEmail(email.trim().toLowerCase());
+    if (existingUserByEmail) {
+      Logger.warn('Registration failed: Email already exists', { requestId: req.requestId, email: email.trim() });
+      return res.status(409).json(ErrorResponse.badRequest('Email already registered'));
+    }
+    
+    const existingUserByUsername = await getUserByUsername(username.trim());
+    if (existingUserByUsername) {
+      Logger.warn('Registration failed: Username already exists', { requestId: req.requestId, username: username.trim() });
+      return res.status(409).json(ErrorResponse.badRequest('Username already taken'));
+    }
+    
+    // Hash password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+    
+    // Create user
+    const userId = await createUser(username.trim(), email.trim().toLowerCase(), passwordHash);
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId, username: username.trim(), email: email.trim().toLowerCase() },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    
+    Logger.info('User registered successfully', { requestId: req.requestId, userId, username: username.trim() });
+    
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: {
+        id: userId,
+        username: username.trim(),
+        email: email.trim().toLowerCase()
+      },
+      token
+    });
+  } catch (err) {
+    Logger.error('Error during user registration', err, { requestId: req.requestId, body: req.body });
+    res.status(500).json(ErrorResponse.serverError('Failed to register user', req.requestId));
+  }
+});
+
+app.post('/auth/login', authLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Validation
+    const validationErrors = [];
+    
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      validationErrors.push('Email is required');
+    }
+    
+    if (!password || typeof password !== 'string') {
+      validationErrors.push('Password is required');
+    }
+    
+    if (validationErrors.length > 0) {
+      Logger.warn('User login validation failed', { requestId: req.requestId, errors: validationErrors });
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
+    }
+    
+    // Find user
+    const user = await getUserByEmail(email.trim().toLowerCase());
+    if (!user) {
+      Logger.warn('Login failed: User not found', { requestId: req.requestId, email: email.trim() });
+      return res.status(401).json(ErrorResponse.unauthorized('Invalid credentials'));
+    }
+    
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      Logger.warn('Login failed: Invalid password', { requestId: req.requestId, userId: user.id });
+      return res.status(401).json(ErrorResponse.unauthorized('Invalid credentials'));
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+    
+    Logger.info('User logged in successfully', { requestId: req.requestId, userId: user.id, username: user.username });
+    
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email
+      },
+      token
+    });
+  } catch (err) {
+    Logger.error('Error during user login', err, { requestId: req.requestId, body: req.body });
+    res.status(500).json(ErrorResponse.serverError('Failed to login', req.requestId));
+  }
+});
+
+app.get('/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await getUserById(req.user.userId);
+    if (!user) {
+      Logger.warn('User not found for profile', { requestId: req.requestId, userId: req.user.userId });
+      return res.status(404).json(ErrorResponse.notFound('User'));
+    }
+    
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        created_at: user.created_at
+      }
+    });
+  } catch (err) {
+    Logger.error('Error fetching user profile', err, { requestId: req.requestId, userId: req.user.userId });
+    res.status(500).json(ErrorResponse.serverError('Failed to fetch user profile', req.requestId));
+  }
+});
 
 app.get('/tasks', authenticateToken, async (req, res) => {
   try {
@@ -323,14 +516,14 @@ app.get('/tasks', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Sort parameter must be one of: manual, priority, created'));
     }
     
-    // キャッシュキーの生成
-    const cacheKey = `tasks:${search || ''}:${category || ''}:${sort || 'priority'}`;
+    // キャッシュキーの生成（ユーザーIDを含む）
+    const cacheKey = `tasks:${req.user.userId}:${search || ''}:${category || ''}:${sort || 'priority'}`;
     
     // 簡易的なメモリキャッシュ（本番環境ではRedisなどを使用推奨）
     if (taskCache.has(cacheKey)) {
       const cached = taskCache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        Logger.info('Serving cached tasks', { requestId: req.requestId, cacheKey });
+        Logger.info('Serving cached tasks', { requestId: req.requestId, cacheKey, userId: req.user.userId });
         res.setHeader('X-Cache', 'HIT');
         return res.json(cached.data);
       } else {
@@ -338,8 +531,8 @@ app.get('/tasks', authenticateToken, async (req, res) => {
       }
     }
     
-    Logger.info('Fetching tasks', { requestId: req.requestId, search, category, sort });
-    const tasks = await getAllTasks(search, category, sort);
+    Logger.info('Fetching tasks', { requestId: req.requestId, userId: req.user.userId, search, category, sort });
+    const tasks = await getAllTasks(req.user.userId, search, category, sort);
     
     const formattedTasks = tasks.map(task => ({ 
       id: task.id,
@@ -415,8 +608,8 @@ app.post('/tasks', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
     }
     
-    Logger.info('Creating new task', { requestId: req.requestId, text: text.trim(), priority, due_date, category });
-    const taskId = await addTask(text.trim(), priority, due_date, category?.trim() || null);
+    Logger.info('Creating new task', { requestId: req.requestId, userId: req.user.userId, text: text.trim(), priority, due_date, category });
+    const taskId = await addTask(text.trim(), req.user.userId, priority, due_date, category?.trim() || null);
     
     Logger.info('Task created successfully', { requestId: req.requestId, taskId, text: text.trim() });
     
@@ -462,8 +655,8 @@ app.delete('/tasks/:id', authenticateToken, async (req, res, next) => {
       return res.status(400).json(ErrorResponse.badRequest('Task ID must be a valid positive number'));
     }
     
-    Logger.info('Deleting task', { requestId: req.requestId, taskId });
-    const deleted = await deleteTask(taskId);
+    Logger.info('Deleting task', { requestId: req.requestId, userId: req.user.userId, taskId });
+    const deleted = await deleteTask(taskId, req.user.userId);
     
     if (!deleted) {
       Logger.warn('Task not found for deletion', { requestId: req.requestId, taskId });
@@ -541,9 +734,9 @@ app.put('/tasks/:id', authenticateToken, async (req, res, next) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
     }
     
-    Logger.info('Updating task', { requestId: req.requestId, taskId, newText: taskText.trim() });
+    Logger.info('Updating task', { requestId: req.requestId, userId: req.user.userId, taskId, newText: taskText.trim() });
     
-    const updated = await updateTask(taskId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
+    const updated = await updateTask(taskId, req.user.userId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
     
     if (!updated) {
       Logger.warn('Task not found for update', { requestId: req.requestId, taskId });
@@ -593,15 +786,15 @@ app.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
     
     let updated;
     if (completed !== undefined) {
-      const tasks = await getAllTasks();
+      const tasks = await getAllTasks(req.user.userId);
       const task = tasks.find(t => t.id === taskId);
       if (!task) {
         Logger.warn('Task not found for patch', { requestId: req.requestId, taskId });
         return res.status(404).json(ErrorResponse.notFound('Task'));
       }
-      updated = await updateTask(taskId, task.text, task.priority, task.due_date, task.category, completed);
+      updated = await updateTask(taskId, req.user.userId, task.text, task.priority, task.due_date, task.category, completed);
     } else {
-      updated = await toggleTaskCompletion(taskId);
+      updated = await toggleTaskCompletion(taskId, req.user.userId);
     }
     
     if (!updated) {
@@ -632,7 +825,7 @@ app.put('/tasks/:index', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     if (idx >= tasks.length) {
       return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
     }
@@ -682,7 +875,7 @@ app.put('/tasks/:index', authenticateToken, async (req, res) => {
     }
     
     const taskId = tasks[idx].id;
-    const updated = await updateTask(taskId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
+    const updated = await updateTask(taskId, req.user.userId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
     
     if (!updated) {
       return res.status(404).json(ErrorResponse.notFound('Task'));
@@ -706,7 +899,7 @@ app.patch('/tasks/:index/toggle', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     if (idx >= tasks.length) {
       return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
     }
@@ -714,7 +907,7 @@ app.patch('/tasks/:index/toggle', authenticateToken, async (req, res) => {
     const taskId = tasks[idx].id;
     Logger.info('Toggle task completion', { requestId: req.requestId, taskId, index: idx, currentCompleted: tasks[idx].completed });
     
-    const updated = await toggleTaskCompletion(taskId);
+    const updated = await toggleTaskCompletion(taskId, req.user.userId);
     
     if (!updated) {
       return res.status(404).json(ErrorResponse.notFound('Task'));
@@ -739,13 +932,13 @@ app.delete('/tasks/:index', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     if (idx >= tasks.length) {
       return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
     }
     
     const taskId = tasks[idx].id;
-    const deleted = await deleteTask(taskId);
+    const deleted = await deleteTask(taskId, req.user.userId);
     
     if (!deleted) {
       return res.status(404).json(ErrorResponse.notFound('Task'));
@@ -778,7 +971,7 @@ app.post('/tasks/bulk-delete', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     const validIndices = indices.filter(idx => 
       Number.isInteger(idx) && idx >= 0 && idx < tasks.length
     );
@@ -789,7 +982,7 @@ app.post('/tasks/bulk-delete', authenticateToken, async (req, res) => {
     
     let deletedCount = 0;
     for (const idx of validIndices.sort((a, b) => b - a)) {
-      const deleted = await deleteTask(tasks[idx].id);
+      const deleted = await deleteTask(tasks[idx].id, req.user.userId);
       if (deleted) deletedCount++;
     }
     
@@ -824,7 +1017,7 @@ app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     const validIndices = indices.filter(idx => 
       Number.isInteger(idx) && idx >= 0 && idx < tasks.length
     );
@@ -836,7 +1029,7 @@ app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
     let updatedCount = 0;
     for (const idx of validIndices) {
       const task = tasks[idx];
-      const updated = await updateTask(task.id, task.text, task.priority, task.due_date, task.category, completed);
+      const updated = await updateTask(task.id, req.user.userId, task.text, task.priority, task.due_date, task.category, completed);
       if (updated) updatedCount++;
     }
     
@@ -875,7 +1068,7 @@ app.delete('/tasks', authenticateToken, async (req, res) => {
     let deletedCount = 0;
     
     for (const taskId of validIds) {
-      const deleted = await deleteTask(taskId);
+      const deleted = await deleteTask(taskId, req.user.userId);
       if (deleted) deletedCount++;
     }
     
@@ -919,13 +1112,13 @@ app.patch('/tasks', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', ['No valid task IDs provided']));
     }
     
-    const tasks = await getAllTasks();
+    const tasks = await getAllTasks(req.user.userId);
     let updatedCount = 0;
     
     for (const taskId of validIds) {
       const task = tasks.find(t => t.id === taskId);
       if (task) {
-        const updated = await updateTask(taskId, task.text, task.priority, task.due_date, task.category, completed);
+        const updated = await updateTask(taskId, req.user.userId, task.text, task.priority, task.due_date, task.category, completed);
         if (updated) updatedCount++;
       }
     }
@@ -974,13 +1167,13 @@ app.post('/tasks/reorder', authenticateToken, async (req, res) => {
 
 app.get('/categories', authenticateToken, async (req, res) => {
   try {
-    const cacheKey = 'categories:all';
+    const cacheKey = `categories:${req.user.userId}`;
     
     // カテゴリキャッシュチェック
     if (categoryCache.has(cacheKey)) {
       const cached = categoryCache.get(cacheKey);
       if (Date.now() - cached.timestamp < CACHE_TTL) {
-        Logger.info('Serving cached categories', { requestId: req.requestId });
+        Logger.info('Serving cached categories', { requestId: req.requestId, userId: req.user.userId });
         res.setHeader('X-Cache', 'HIT');
         return res.json(cached.data);
       } else {
@@ -988,8 +1181,8 @@ app.get('/categories', authenticateToken, async (req, res) => {
       }
     }
     
-    Logger.info('Fetching categories', { requestId: req.requestId });
-    const categories = await getAllCategories();
+    Logger.info('Fetching categories', { requestId: req.requestId, userId: req.user.userId });
+    const categories = await getAllCategories(req.user.userId);
     
     // カテゴリキャッシュに保存
     categoryCache.set(cacheKey, {
@@ -997,11 +1190,11 @@ app.get('/categories', authenticateToken, async (req, res) => {
       timestamp: Date.now()
     });
     
-    Logger.info('Categories fetched successfully', { requestId: req.requestId, count: categories.length });
+    Logger.info('Categories fetched successfully', { requestId: req.requestId, userId: req.user.userId, count: categories.length });
     res.setHeader('X-Cache', 'MISS');
     res.json(categories);
   } catch (err) {
-    Logger.error('Error fetching categories', err, { requestId: req.requestId });
+    Logger.error('Error fetching categories', err, { requestId: req.requestId, userId: req.user.userId });
     res.status(500).json(ErrorResponse.serverError('Failed to fetch categories', req.requestId));
   }
 });
