@@ -23,7 +23,8 @@ function authenticateToken(req, res, next) {
 
 app.get('/tasks', authenticateToken, async (req, res) => {
   try {
-    const tasks = await getAllTasks();
+    const { search, category } = req.query;
+    const tasks = await getAllTasks(search, category);
     res.json(tasks.map(task => ({ 
       text: task.text, 
       priority: task.priority || 'medium',

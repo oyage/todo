@@ -79,29 +79,55 @@
                 </div>
             </div>
             
-            <div class="mb-6 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
-                <div class="flex gap-4">
-                    <div class="flex gap-2 items-center">
-                        <label for="categoryFilter" class="text-sm text-gray-600">カテゴリ:</label>
-                        <select 
-                            id="categoryFilter" 
-                            onchange="fetchTasks()" 
-                            class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
+                </div>
+                
+                <!-- Search and Filter Controls -->
+                <div class="bg-gray-50 rounded-xl p-4 mb-4">
+                    <div class="flex flex-wrap gap-3 items-center">
+                        <div class="flex-1 min-w-64">
+                            <div class="relative">
+                                <input 
+                                    type="text" 
+                                    id="searchInput" 
+                                    placeholder="🔍 タスクを検索..." 
+                                    class="w-full px-4 py-2 pl-10 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                                    oninput="debounceSearch()"
+                                >
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-400">🔍</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 items-center">
+                            <label for="categoryFilter" class="text-sm text-gray-600 whitespace-nowrap">カテゴリ:</label>
+                            <select 
+                                id="categoryFilter" 
+                                onchange="fetchTasks()" 
+                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="">すべて</option>
+                            </select>
+                        </div>
+                        <div class="flex gap-2 items-center">
+                            <label for="sortOrder" class="text-sm text-gray-600 whitespace-nowrap">並び順:</label>
+                            <select 
+                                id="sortOrder" 
+                                onchange="fetchTasks()" 
+                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                            >
+                                <option value="priority">優先度順</option>
+                                <option value="created">作成日順</option>
+                            </select>
+                        </div>
+                        <button 
+                            onclick="clearFilters()" 
+                            class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-sm font-medium whitespace-nowrap"
                         >
-                            <option value="">すべて</option>
-                        </select>
-                    </div>
-                    <div class="flex gap-2 items-center">
-                        <label for="sortOrder" class="text-sm text-gray-600">並び順:</label>
-                        <select 
-                            id="sortOrder" 
-                            onchange="fetchTasks()" 
-                            class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                        >
-                            <option value="priority">優先度順</option>
-                            <option value="created">作成日順</option>
-                        </select>
+                            🗑️ クリア
+                        </button>
                     </div>
                 </div>
             </div>
@@ -237,59 +263,91 @@
             }
         }
         
+        let searchTimeout;
+        
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(fetchTasks, 300);
+        }
+        
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('sortOrder').value = 'priority';
+            fetchTasks();
+        }
+
         async function fetchTasks() {
-            const res = await fetch('/tasks', {
-                headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
-            });
-            if (!res.ok) {
-                if (res.status === 401) {
-                    alert('認証エラー: トークンが無効です');
+            try {
+                const searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
+                const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+                
+                // Build query parameters
+                const params = new URLSearchParams();
+                if (searchQuery) params.append('search', searchQuery);
+                if (categoryFilter) params.append('category', categoryFilter);
+                
+                const url = `/tasks${params.toString() ? '?' + params.toString() : ''}`;
+                
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                let tasks = await res.json();
+                
+                // Sort tasks based on selected order (backend handles search/category filtering)
+                const sortOrder = document.getElementById('sortOrder')?.value || 'priority';
+                if (sortOrder === 'created') {
+                    tasks = tasks.reverse(); // Since they come pre-sorted by priority, reverse for creation order
+                }
+            
+                const list = document.getElementById('taskList');
+                list.innerHTML = '';
+            
+                // Fetch and update categories
+                await fetchCategories();
+                
+                if (tasks.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'text-center py-12 text-gray-500';
+
+                    const icon = document.createElement('div');
+                    icon.className = 'text-6xl mb-4';
+                    icon.textContent = '📝';
+
+                    const msg1 = document.createElement('p');
+                    msg1.className = 'text-lg';
+                    
+                    // Check if it's due to search/filter
+                    const searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
+                    const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+                    
+                    if (searchQuery || categoryFilter) {
+                        msg1.textContent = '検索条件に一致するタスクが見つかりません';
+                    } else {
+                        msg1.textContent = 'まだタスクがありません';
+                    }
+
+                    const msg2 = document.createElement('p');
+                    msg2.className = 'text-sm';
+                    if (searchQuery || categoryFilter) {
+                        msg2.textContent = '検索条件を変更するか、新しいタスクを追加してください';
+                    } else {
+                        msg2.textContent = '上の入力欄からタスクを追加してください';
+                    }
+
+                    emptyState.appendChild(icon);
+                    emptyState.appendChild(msg1);
+                    emptyState.appendChild(msg2);
+                    list.appendChild(emptyState);
                     return;
                 }
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            let tasks = await res.json();
-            
-            // Filter tasks by category
-            const categoryFilter = document.getElementById('categoryFilter');
-            if (categoryFilter && categoryFilter.value) {
-                tasks = tasks.filter(task => task.category === categoryFilter.value);
-            }
-            
-            // Sort tasks based on selected order
-            const sortOrder = document.getElementById('sortOrder').value;
-            if (sortOrder === 'created') {
-                tasks = tasks.reverse(); // Since they come pre-sorted by priority, reverse for creation order
-            }
-            
-            const list = document.getElementById('taskList');
-            list.innerHTML = '';
-            
-            // Fetch and update categories
-            await fetchCategories();
-            
-            if (tasks.length === 0) {
-                const emptyState = document.createElement('div');
-                emptyState.className = 'text-center py-12 text-gray-500';
-
-                const icon = document.createElement('div');
-                icon.className = 'text-6xl mb-4';
-                icon.textContent = '📝';
-
-                const msg1 = document.createElement('p');
-                msg1.className = 'text-lg';
-                msg1.textContent = 'まだタスクがありません';
-
-                const msg2 = document.createElement('p');
-                msg2.className = 'text-sm';
-                msg2.textContent = '上の入力欄からタスクを追加してください';
-
-                emptyState.appendChild(icon);
-                emptyState.appendChild(msg1);
-                emptyState.appendChild(msg2);
-                list.appendChild(emptyState);
-                return;
-            }
             
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
@@ -395,6 +453,10 @@
 
                 list.appendChild(li);
             });
+            } catch (error) {
+                console.error('Error fetching tasks:', error);
+                alert('タスクの取得に失敗しました');
+            }
         }
         async function addTask() {
             const input = document.getElementById('newTask');

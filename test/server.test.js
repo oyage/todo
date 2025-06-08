@@ -351,6 +351,70 @@ describe('Todo API', () => {
     expect(res.body.error).toBe('Unauthorized');
   });
 
+  test('GET /tasks supports search query parameter', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy groceries', category: 'Shopping' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Finish homework', category: 'Study' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy coffee', category: 'Shopping' });
+    
+    const res = await request(app).get('/tasks?search=Buy').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].text).toBe('Buy groceries');
+    expect(res.body[1].text).toBe('Buy coffee');
+  });
+
+  test('GET /tasks supports category filter parameter', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy groceries', category: 'Shopping' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Finish homework', category: 'Study' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy coffee', category: 'Shopping' });
+    
+    const res = await request(app).get('/tasks?category=Shopping').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].text).toBe('Buy groceries');
+    expect(res.body[1].text).toBe('Buy coffee');
+  });
+
+  test('GET /tasks supports both search and category filters', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy groceries', category: 'Shopping' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Finish homework', category: 'Study' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy coffee', category: 'Shopping' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Study coffee brewing', category: 'Study' });
+    
+    const res = await request(app).get('/tasks?search=coffee&category=Shopping').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].text).toBe('Buy coffee');
+  });
+
+  test('GET /tasks search is case insensitive', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy Groceries' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'finish homework' });
+    
+    const res = await request(app).get('/tasks?search=buy').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].text).toBe('Buy Groceries');
+  });
+
+  test('GET /tasks returns empty array when no tasks match search', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy groceries' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Finish homework' });
+    
+    const res = await request(app).get('/tasks?search=nonexistent').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  test('GET /tasks returns empty array when no tasks match category filter', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Buy groceries', category: 'Shopping' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Finish homework', category: 'Study' });
+    
+    const res = await request(app).get('/tasks?category=Work').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
   // test('index.html escapes task text content', async () => {
   //   const malicious = '<img src=x onerror="alert(1)">';
   //   await request(app).post('/tasks').set(authHeaders).send({ task: malicious });

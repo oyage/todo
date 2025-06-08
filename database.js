@@ -35,17 +35,36 @@ function initializeDatabase() {
   });
 }
 
-function getAllTasks() {
+function getAllTasks(searchQuery = null, categoryFilter = null) {
   return new Promise((resolve, reject) => {
-    db.all(`SELECT * FROM tasks 
-            ORDER BY 
+    let query = `SELECT * FROM tasks`;
+    const params = [];
+    const conditions = [];
+
+    if (searchQuery) {
+      conditions.push(`text LIKE ?`);
+      params.push(`%${searchQuery}%`);
+    }
+
+    if (categoryFilter) {
+      conditions.push(`category = ?`);
+      params.push(categoryFilter);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ` ORDER BY 
               CASE priority 
                 WHEN 'high' THEN 1 
                 WHEN 'medium' THEN 2 
                 WHEN 'low' THEN 3 
                 ELSE 2 
               END, 
-              created_at`, (err, rows) => {
+              created_at`;
+
+    db.all(query, params, (err, rows) => {
       if (err) {
         reject(err);
       } else {
