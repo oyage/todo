@@ -14,9 +14,22 @@ Run tests:
 npm test
 ```
 
-Start with Docker:
+Start with Docker (セキュリティ強化版):
 ```bash
-docker-compose up
+# セットアップ（初回のみ）
+npm run docker:setup
+
+# アプリケーション起動
+npm run docker:up
+
+# ログ確認
+npm run docker:logs
+
+# セキュリティ監査
+npm run docker:security-audit
+
+# 停止
+npm run docker:down
 ```
 
 ## Architecture
@@ -50,3 +63,29 @@ The web server runs on port 3000 and serves static files from the `public/` dire
 ## Authentication
 
 All API endpoints require Bearer Token authentication. Set the `BEARER_TOKEN` environment variable or use the default `your-secret-token`. The frontend includes the token in all requests.
+
+## Security Features
+
+- CORS (Cross-Origin Resource Sharing) configuration with origin whitelisting
+- Security headers using Helmet.js (CSP, HSTS, XSS protection, etc.)
+- Rate limiting for API and authentication endpoints
+- HTTPS support with automatic SSL certificate generation
+- Bearer token authentication with enhanced validation
+- Comprehensive error handling and logging
+- Docker security hardening with non-root user execution
+- Linux capabilities minimization
+- Resource limits and health checks
+
+## Docker Security
+
+The Docker environment includes multiple security enhancements:
+
+- Non-root user execution (UID 1001)
+- Minimal Linux capabilities
+- Resource limits (CPU/Memory)
+- Secure networking with isolated bridge
+- Health checks and monitoring
+- Secure volume mounting
+- Log rotation and management
+
+See `SECURITY.md` for detailed security documentation.

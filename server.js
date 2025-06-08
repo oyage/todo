@@ -1,8 +1,14 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, reorderTasks, getAllCategories } = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 
 // Enhanced logging utility
 class Logger {
@@ -84,19 +90,149 @@ class ErrorResponse {
   }
 }
 
+// Security Configuration
+const securityConfig = {
+  // CORS設定
+  cors: {
+    origin: function (origin, callback) {
+      // 許可されたオリジンのリスト
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'https://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://127.0.0.1:3000',
+        'https://localhost:3443',
+        'https://127.0.0.1:3443'
+      ];
+      
+      // 開発環境ではより寛容な設定
+      if (process.env.NODE_ENV === 'development') {
+        allowedOrigins.push('http://localhost:*', 'https://localhost:*');
+      }
+      
+      // 環境変数からの追加許可オリジン
+      if (process.env.ALLOWED_ORIGINS) {
+        allowedOrigins.push(...process.env.ALLOWED_ORIGINS.split(','));
+      }
+      
+      // originがundefined（同一オリジン）または許可リストにある場合は許可
+      if (!origin || allowedOrigins.includes(origin) || 
+          (process.env.NODE_ENV === 'development' && origin && origin.startsWith('http://localhost')) ||
+          (process.env.NODE_ENV === 'development' && origin && origin.startsWith('https://localhost'))) {
+        callback(null, true);
+      } else {
+        Logger.warn('CORS blocked request', { origin, requestId: 'N/A' });
+        callback(new Error('CORS policy violation'));
+      }
+    },
+    credentials: true, // クッキーを含むリクエストを許可
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['X-Request-ID'],
+    maxAge: 86400 // プリフライトリクエストのキャッシュ時間（24時間）
+  },
+  
+  // Rate Limiting設定
+  rateLimit: {
+    windowMs: 15 * 60 * 1000, // 15分
+    max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 本番環境では厳しく制限
+    message: {
+      error: {
+        type: 'RATE_LIMIT_ERROR',
+        message: 'リクエストが多すぎます。しばらく時間を置いてから再試行してください。',
+        code: 429
+      }
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      Logger.warn('Rate limit exceeded', { 
+        ip: req.ip, 
+        userAgent: req.get('User-Agent'),
+        requestId: req.requestId || 'N/A'
+      });
+      res.status(429).json({
+        error: {
+          type: 'RATE_LIMIT_ERROR',
+          message: 'リクエストが多すぎます。しばらく時間を置いてから再試行してください。',
+          code: 429
+        }
+      });
+    }
+  },
+  
+  // Helmet設定（セキュリティヘッダー）
+  helmet: {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.tailwindcss.com"],
+        scriptSrcAttr: ["'unsafe-inline'"],
+        fontSrc: ["'self'", "data:"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false, // 互換性のため無効化
+    hsts: {
+      maxAge: 31536000, // 1年
+      includeSubDomains: true,
+      preload: true
+    }
+  }
+};
+
+// セキュリティミドルウェアの適用
+app.use(helmet(securityConfig.helmet));
+app.use(cors(securityConfig.cors));
+
+// Rate Limitingの適用
+const limiter = rateLimit(securityConfig.rateLimit);
+app.use('/api', limiter); // APIエンドポイントにのみ適用
+
+// より厳しいRate Limitingを認証エンドポイントに適用
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15分
+  max: 5, // 認証関連は厳しく制限
+  message: {
+    error: {
+      type: 'AUTH_RATE_LIMIT_ERROR',
+      message: '認証試行回数が多すぎます。15分後に再試行してください。',
+      code: 429
+    }
+  }
+});
+
 // Request ID middleware for tracking
 app.use((req, res, next) => {
   req.requestId = Math.random().toString(36).substr(2, 9);
   res.setHeader('X-Request-ID', req.requestId);
+  
+  // セキュリティ関連ヘッダーの追加
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
   Logger.info(`${req.method} ${req.path}`, { 
     requestId: req.requestId,
     userAgent: req.get('User-Agent'),
-    ip: req.ip
+    ip: req.ip,
+    origin: req.get('Origin')
   });
   next();
 });
 
-app.use(express.json());
+// JSON解析のセキュリティ設定
+app.use(express.json({ 
+  limit: '10mb', // リクエストサイズ制限
+  type: 'application/json'
+}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const BEARER_TOKEN = process.env.BEARER_TOKEN || 'your-secret-token';
@@ -343,7 +479,7 @@ app.put('/tasks/:id', authenticateToken, async (req, res) => {
 app.patch('/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const taskId = parseInt(req.params.id, 10);
-    const { completed } = req.body;
+    const { completed } = req.body || {};
     
     if (isNaN(taskId) || taskId <= 0) {
       Logger.warn('Invalid task ID for patch', { requestId: req.requestId, id: req.params.id });
@@ -667,17 +803,7 @@ app.use((req, res) => {
   res.status(404).json(ErrorResponse.notFound('Endpoint'));
 });
 
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  Logger.info('Received SIGTERM signal, shutting down gracefully');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  Logger.info('Received SIGINT signal, shutting down gracefully');
-  process.exit(0);
-});
-
+// グローバルエラーハンドラー
 process.on('unhandledRejection', (reason, promise) => {
   Logger.error('Unhandled Promise Rejection', reason, { promise });
 });
@@ -687,16 +813,119 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+// HTTPS設定とサーバー起動
+function createHTTPSOptions() {
+  try {
+    const sslPath = path.join(__dirname, 'ssl');
+    const keyPath = path.join(sslPath, 'private.key');
+    const certPath = path.join(sslPath, 'cert.pem');
+    
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      return {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath)
+      };
+    } else {
+      Logger.warn('SSL certificates not found. HTTPS server will not start.', {
+        keyPath,
+        certPath
+      });
+      return null;
+    }
+  } catch (error) {
+    Logger.error('Failed to load SSL certificates', error);
+    return null;
+  }
+}
+
+// HTTPからHTTPSへのリダイレクト機能
+function createRedirectToHTTPS() {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_HTTPS_REDIRECT === 'true') {
+    return (req, res, next) => {
+      if (req.header('x-forwarded-proto') !== 'https') {
+        Logger.info('Redirecting to HTTPS', { originalUrl: req.originalUrl, ip: req.ip });
+        res.redirect(`https://${req.header('host')}${req.url}`);
+      } else {
+        next();
+      }
+    };
+  }
+  return (req, res, next) => next();
+}
+
+// HTTPSリダイレクトミドルウェアの適用
+app.use(createRedirectToHTTPS());
+
 if (require.main === module) {
   initializeDatabase().then(() => {
-    const server = app.listen(PORT, () => {
-      Logger.info(`Server started successfully`, { port: PORT, url: `http://localhost:${PORT}` });
+    // HTTPサーバーの起動
+    const httpServer = app.listen(PORT, () => {
+      Logger.info(`HTTP Server started successfully`, { 
+        port: PORT, 
+        url: `http://localhost:${PORT}`,
+        env: process.env.NODE_ENV || 'development'
+      });
     });
     
-    server.on('error', (error) => {
-      Logger.error('Server error', error);
+    httpServer.on('error', (error) => {
+      Logger.error('HTTP Server error', error);
       process.exit(1);
     });
+    
+    // HTTPSサーバーの起動（SSL証明書が利用可能な場合）
+    const httpsOptions = createHTTPSOptions();
+    let httpsServer = null;
+    if (httpsOptions) {
+      httpsServer = https.createServer(httpsOptions, app);
+      
+      httpsServer.listen(HTTPS_PORT, () => {
+        Logger.info(`HTTPS Server started successfully`, { 
+          port: HTTPS_PORT, 
+          url: `https://localhost:${HTTPS_PORT}`,
+          env: process.env.NODE_ENV || 'development'
+        });
+      });
+      
+      httpsServer.on('error', (error) => {
+        Logger.error('HTTPS Server error', error);
+        // HTTPSサーバーのエラーでアプリ全体を停止しない
+      });
+    } else {
+      Logger.info('HTTPS server not started - SSL certificates not available');
+      if (process.env.NODE_ENV === 'development') {
+        Logger.info('To enable HTTPS in development, run: npm run generate-ssl-cert');
+      }
+    }
+    
+    // Graceful shutdown handling
+    const shutdown = (signal) => {
+      Logger.info(`Received ${signal} signal, shutting down gracefully`);
+      
+      httpServer.close((err) => {
+        if (err) {
+          Logger.error('Error during HTTP server shutdown', err);
+        } else {
+          Logger.info('HTTP server closed');
+        }
+        
+        if (httpsServer) {
+          httpsServer.close((httpsErr) => {
+            if (httpsErr) {
+              Logger.error('Error during HTTPS server shutdown', httpsErr);
+            } else {
+              Logger.info('HTTPS server closed');
+            }
+            process.exit(0);
+          });
+        } else {
+          process.exit(0);
+        }
+      });
+    };
+    
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    
   }).catch(err => {
     Logger.error('Failed to initialize database', err);
     process.exit(1);

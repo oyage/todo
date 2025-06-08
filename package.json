@@ -5,14 +5,28 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:prod": "NODE_ENV=production node server.js",
+    "start:https": "node server.js",
+    "generate-ssl-cert": "./scripts/generate-ssl-cert.sh",
+    "security-check": "npm audit",
+    "security-fix": "npm audit fix",
+    "docker:setup": "./scripts/docker-setup.sh",
+    "docker:up": "docker-compose --env-file .env.docker up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f todo-app",
+    "docker:security-audit": "./scripts/docker-security-audit.sh",
+    "docker:build": "docker-compose build --no-cache"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

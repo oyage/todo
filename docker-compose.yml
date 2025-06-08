@@ -3,14 +3,108 @@ version: '3.8'
 services:
   todo-app:
     build: .
+    container_name: todo-app-secure
+    
+    # ポート設定 - HTTPとHTTPS
     ports:
       - "3000:3000"
+      - "3443:3443"
+    
+    # ボリューム設定 - データとSSL証明書
     volumes:
-      - todo-data:/app/data
+      - todo-data:/app/data:rw
+      - todo-ssl:/app/ssl:rw
+      - /etc/localtime:/etc/localtime:ro  # タイムゾーン設定
+    
+    # セキュリティ関連の環境変数
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - HTTPS_PORT=3443
+      - BEARER_TOKEN=${BEARER_TOKEN:-your-secure-production-token}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,https://localhost:3443}
+      - ENABLE_HTTPS_REDIRECT=${ENABLE_HTTPS_REDIRECT:-false}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
+      - AUTH_RATE_LIMIT_MAX=${AUTH_RATE_LIMIT_MAX:-5}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    
+    # セキュリティ制約
+    security_opt:
+      - no-new-privileges:true  # 新しい権限の取得を禁止
+      - seccomp:unconfined      # 必要に応じてseccompプロファイルを設定
+    
+    # リソース制限
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # ネットワーク設定
+    networks:
+      - todo-network
+    
+    # ヘルスチェック（Dockerfileと重複するがdocker-composeでも明示）
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); const options = { hostname: 'localhost', port: 3000, path: '/', method: 'HEAD' }; const req = http.request(options, (res) => { if (res.statusCode === 200) process.exit(0); else process.exit(1); }); req.on('error', () => process.exit(1)); req.end();"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 再起動ポリシー
     restart: unless-stopped
+    
+    # 読み取り専用ファイルシステム（一部ディレクトリを除く）
+    read_only: false  # SQLiteのためfalseに設定
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    
+    # ログ設定
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # 追加のセキュリティ設定
+    cap_drop:
+      - ALL  # すべてのLinux capabilitiesを削除
+    cap_add:
+      - CHOWN      # ファイル所有権変更（ログファイル用）
+      - SETGID     # グループID変更
+      - SETUID     # ユーザーID変更
+      - NET_BIND_SERVICE  # 1024以下のポートでもバインド可能
+    
+    # ユーザー設定
+    user: "1001:1001"  # 非rootユーザー
 
+# セキュアなネットワーク設定
+networks:
+  todo-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0"
+
+# セキュアなボリューム設定
 volumes:
   todo-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker-data/data
+  todo-ssl:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker-data/ssl
