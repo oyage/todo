@@ -50,7 +50,7 @@ describe('Todo API', () => {
   test('POST /tasks adds a task with auth', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'Test', priority: 'medium', due_date: null, category: null }]);
+    expect(res.body).toEqual([{ text: 'Test', priority: 'medium', due_date: null, category: null, completed: false }]);
   });
 
   test('POST /tasks returns 401 without auth', async () => {
@@ -88,7 +88,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'New' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'New', priority: 'medium', due_date: null, category: null }]);
+    expect(res.body).toEqual([{ text: 'New', priority: 'medium', due_date: null, category: null, completed: false }]);
   });
 
   test('PUT /tasks/:index returns 401 without auth', async () => {
@@ -127,15 +127,15 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveLength(2);
-    expect(res.body[0]).toEqual({ text: 'High Priority Task', priority: 'high', due_date: null, category: null });
-    expect(res.body[1]).toEqual({ text: 'Low Priority Task', priority: 'low', due_date: null, category: null });
+    expect(res.body[0]).toEqual({ text: 'High Priority Task', priority: 'high', due_date: null, category: null, completed: false });
+    expect(res.body[1]).toEqual({ text: 'Low Priority Task', priority: 'low', due_date: null, category: null, completed: false });
   });
 
   test('POST /tasks defaults to medium priority', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Default Priority Task' });
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
-    expect(res.body[0]).toEqual({ text: 'Default Priority Task', priority: 'medium', due_date: null, category: null });
+    expect(res.body[0]).toEqual({ text: 'Default Priority Task', priority: 'medium', due_date: null, category: null, completed: false });
   });
 
   test('POST /tasks rejects invalid priority', async () => {
@@ -149,7 +149,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'Test Task', priority: 'high' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body[0]).toEqual({ text: 'Test Task', priority: 'high', due_date: null, category: null });
+    expect(res.body[0]).toEqual({ text: 'Test Task', priority: 'high', due_date: null, category: null, completed: false });
   });
 
   test('PUT /tasks/:index rejects invalid priority', async () => {
@@ -170,14 +170,17 @@ describe('Todo API', () => {
     expect(res.body[0].priority).toBe('high');
     expect(res.body[0].due_date).toBe(null);
     expect(res.body[0].category).toBe(null);
+    expect(res.body[0].completed).toBe(false);
     expect(res.body[1].text).toBe('Medium Task');
     expect(res.body[1].priority).toBe('medium');
     expect(res.body[1].due_date).toBe(null);
     expect(res.body[1].category).toBe(null);
+    expect(res.body[1].completed).toBe(false);
     expect(res.body[2].text).toBe('Low Task');
     expect(res.body[2].priority).toBe('low');
     expect(res.body[2].due_date).toBe(null);
     expect(res.body[2].category).toBe(null);
+    expect(res.body[2].completed).toBe(false);
   });
 
   test('POST /tasks accepts due_date parameter', async () => {
@@ -193,7 +196,8 @@ describe('Todo API', () => {
       text: 'Task with deadline', 
       priority: 'high',
       due_date: dueDate,
-      category: null 
+      category: null,
+      completed: false
     });
   });
 
@@ -208,7 +212,8 @@ describe('Todo API', () => {
       text: 'Task without deadline', 
       priority: 'medium',
       due_date: null,
-      category: null 
+      category: null,
+      completed: false
     });
   });
 
@@ -270,7 +275,8 @@ describe('Todo API', () => {
       text: 'Task with category', 
       priority: 'high',
       due_date: null,
-      category: 'Work' 
+      category: 'Work',
+      completed: false
     });
   });
 
@@ -285,7 +291,8 @@ describe('Todo API', () => {
       text: 'Task without category', 
       priority: 'medium',
       due_date: null,
-      category: null 
+      category: null,
+      completed: false
     });
   });
 
@@ -413,6 +420,92 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks?category=Work').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveLength(0);
+  });
+
+  test('POST /tasks creates task with completed false by default', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test task' });
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0]).toEqual({ 
+      text: 'Test task', 
+      priority: 'medium', 
+      due_date: null, 
+      category: null,
+      completed: false
+    });
+  });
+
+  test('PATCH /tasks/:index/toggle toggles task completion', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test task' });
+    
+    // Toggle to completed
+    const toggleRes = await request(app).patch('/tasks/0/toggle').set(authHeaders);
+    expect(toggleRes.statusCode).toBe(200);
+    expect(toggleRes.body.message).toBe('task completion toggled');
+    
+    let res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body[0].completed).toBe(true);
+    
+    // Toggle back to incomplete
+    await request(app).patch('/tasks/0/toggle').set(authHeaders);
+    res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body[0].completed).toBe(false);
+  });
+
+  test('PATCH /tasks/:index/toggle returns 401 without auth', async () => {
+    const res = await request(app).patch('/tasks/0/toggle');
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
+  test('PATCH /tasks/:index/toggle returns 400 for invalid index', async () => {
+    const res = await request(app).patch('/tasks/999/toggle').set(authHeaders);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid index');
+  });
+
+  test('PUT /tasks/:index can update task completion status', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test task' });
+    
+    const updateRes = await request(app).put('/tasks/0').set(authHeaders).send({ 
+      task: 'Test task', 
+      completed: true 
+    });
+    expect(updateRes.statusCode).toBe(200);
+    
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body[0].completed).toBe(true);
+  });
+
+  test('PUT /tasks/:index rejects invalid completed value', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test task' });
+    
+    const res = await request(app).put('/tasks/0').set(authHeaders).send({ 
+      task: 'Test task', 
+      completed: 'invalid' 
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid completed value');
+  });
+
+  test('GET /tasks returns completed tasks after incomplete tasks', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1', priority: 'high' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 2', priority: 'high' });
+    
+    // Complete the first task
+    await request(app).patch('/tasks/0/toggle').set(authHeaders);
+    
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toHaveLength(2);
+    
+    // Incomplete task should come first
+    expect(res.body[0].text).toBe('Task 2');
+    expect(res.body[0].completed).toBe(false);
+    
+    // Completed task should come second
+    expect(res.body[1].text).toBe('Task 1');
+    expect(res.body[1].completed).toBe(true);
   });
 
   // test('index.html escapes task text content', async () => {

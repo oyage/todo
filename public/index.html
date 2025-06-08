@@ -277,6 +277,26 @@
             fetchTasks();
         }
 
+        async function toggleTaskCompletion(index) {
+            try {
+                const res = await fetch(`/tasks/${index}/toggle`, { 
+                    method: 'PATCH',
+                    headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
+                });
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                fetchTasks();
+            } catch (error) {
+                console.error('Error toggling task completion:', error);
+                alert('タスクの完了状態の変更に失敗しました');
+            }
+        }
+
         async function fetchTasks() {
             try {
                 const searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
@@ -351,14 +371,28 @@
             
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
-                li.className = 'bg-gray-50 rounded-xl p-4 border border-gray-200 hover:border-blue-300 transition-all duration-200 animate-slide-in';
+                li.className = `rounded-xl p-4 border transition-all duration-200 animate-slide-in ${
+                    task.completed 
+                        ? 'bg-gray-100 border-gray-300 opacity-75' 
+                        : 'bg-gray-50 border-gray-200 hover:border-blue-300'
+                }`;
                 li.style.animationDelay = `${i * 50}ms`;
 
                 const wrapper = document.createElement('div');
                 wrapper.className = 'flex items-center justify-between';
 
+                const leftSection = document.createElement('div');
+                leftSection.className = 'flex items-center flex-1 mr-4';
+
+                // Checkbox for completion
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = task.completed;
+                checkbox.className = 'mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
+                checkbox.addEventListener('change', () => toggleTaskCompletion(i));
+
                 const taskContent = document.createElement('div');
-                taskContent.className = 'flex-1 mr-4';
+                taskContent.className = 'flex-1';
                 
                 const topRow = document.createElement('div');
                 topRow.className = 'flex items-center mb-1';
@@ -383,7 +417,7 @@
                 }
 
                 const span = document.createElement('span');
-                span.className = 'text-gray-800 font-medium';
+                span.className = `font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-800'}`;
                 span.textContent = task.text;
                 
                 topRow.appendChild(priorityBadge);
@@ -408,28 +442,37 @@
                     const deadlineSpan = document.createElement('span');
                     const status = getDeadlineStatus(task.due_date);
                     
-                    // Style based on deadline status
+                    // Style based on deadline status and completion
+                    let deadlineClass = '';
                     switch(status) {
                         case 'overdue':
-                            deadlineSpan.className = 'text-red-600 font-semibold';
+                            deadlineClass = task.completed ? 'text-gray-400' : 'text-red-600 font-semibold';
                             break;
                         case 'today':
-                            deadlineSpan.className = 'text-red-500 font-semibold';
+                            deadlineClass = task.completed ? 'text-gray-400' : 'text-red-500 font-semibold';
                             break;
                         case 'tomorrow':
-                            deadlineSpan.className = 'text-orange-500 font-medium';
+                            deadlineClass = task.completed ? 'text-gray-400' : 'text-orange-500 font-medium';
                             break;
                         case 'soon':
-                            deadlineSpan.className = 'text-yellow-600 font-medium';
+                            deadlineClass = task.completed ? 'text-gray-400' : 'text-yellow-600 font-medium';
                             break;
                         default:
-                            deadlineSpan.className = 'text-gray-600';
+                            deadlineClass = task.completed ? 'text-gray-400' : 'text-gray-600';
                     }
                     
+                    if (task.completed) {
+                        deadlineClass += ' line-through';
+                    }
+                    
+                    deadlineSpan.className = deadlineClass;
                     deadlineSpan.textContent = getDeadlineDisplay(task.due_date);
                     deadlineRow.appendChild(deadlineSpan);
                     taskContent.appendChild(deadlineRow);
                 }
+
+                leftSection.appendChild(checkbox);
+                leftSection.appendChild(taskContent);
 
                 const btnContainer = document.createElement('div');
                 btnContainer.className = 'flex gap-2';
@@ -447,7 +490,7 @@
                 btnContainer.appendChild(editBtn);
                 btnContainer.appendChild(deleteBtn);
 
-                wrapper.appendChild(taskContent);
+                wrapper.appendChild(leftSection);
                 wrapper.appendChild(btnContainer);
                 li.appendChild(wrapper);
 
@@ -554,8 +597,15 @@
                 category = categoryChoice.trim() || null;
             }
             
+            // Completion status dialog
+            const completionChoice = confirm(
+                `完了状態を設定してください:\n\n現在: ${currentTask.completed ? '完了' : '未完了'}\n\n「OK」で完了、「キャンセル」で未完了`
+            );
+            
+            const completed = completionChoice;
+            
             try {
-                const requestBody = { task: newTask.trim(), priority };
+                const requestBody = { task: newTask.trim(), priority, completed };
                 if (dueDate !== undefined) {
                     requestBody.due_date = dueDate;
                 }

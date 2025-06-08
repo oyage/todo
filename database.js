@@ -14,6 +14,7 @@ function initializeDatabase() {
       priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
       due_date TEXT,
       category TEXT,
+      completed BOOLEAN DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
       if (err) {
@@ -25,8 +26,11 @@ function initializeDatabase() {
           db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, (dueDateErr) => {
             // Add category column to existing tables if it doesn't exist
             db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, (categoryErr) => {
-              // Ignore errors if columns already exist
-              resolve();
+              // Add completed column to existing tables if it doesn't exist
+              db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, (completedErr) => {
+                // Ignore errors if columns already exist
+                resolve();
+              });
             });
           });
         });
@@ -56,6 +60,7 @@ function getAllTasks(searchQuery = null, categoryFilter = null) {
     }
 
     query += ` ORDER BY 
+              completed ASC,
               CASE priority 
                 WHEN 'high' THEN 1 
                 WHEN 'medium' THEN 2 
@@ -76,11 +81,11 @@ function getAllTasks(searchQuery = null, categoryFilter = null) {
 
 function addTask(text, priority = 'medium', dueDate = null, category = null) {
   return new Promise((resolve, reject) => {
-    db.run('INSERT INTO tasks (text, priority, due_date, category) VALUES (?, ?, ?, ?)', [text, priority, dueDate, category], function(err) {
+    db.run('INSERT INTO tasks (text, priority, due_date, category, completed) VALUES (?, ?, ?, ?, 0)', [text, priority, dueDate, category], function(err) {
       if (err) {
         reject(err);
       } else {
-        resolve({ id: this.lastID, text, priority, due_date: dueDate, category, created_at: new Date().toISOString() });
+        resolve({ id: this.lastID, text, priority, due_date: dueDate, category, completed: false, created_at: new Date().toISOString() });
       }
     });
   });
@@ -98,7 +103,7 @@ function deleteTask(id) {
   });
 }
 
-function updateTask(id, text, priority, dueDate, category) {
+function updateTask(id, text, priority, dueDate, category, completed) {
   return new Promise((resolve, reject) => {
     const params = [text];
     let query = 'UPDATE tasks SET text = ?';
@@ -118,10 +123,27 @@ function updateTask(id, text, priority, dueDate, category) {
       params.push(category);
     }
     
+    if (completed !== undefined) {
+      query += ', completed = ?';
+      params.push(completed ? 1 : 0);
+    }
+    
     query += ' WHERE id = ?';
     params.push(id);
     
     db.run(query, params, function(err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(this.changes > 0);
+      }
+    });
+  });
+}
+
+function toggleTaskCompletion(id) {
+  return new Promise((resolve, reject) => {
+    db.run('UPDATE tasks SET completed = 1 - completed WHERE id = ?', [id], function(err) {
       if (err) {
         reject(err);
       } else {
@@ -149,5 +171,6 @@ module.exports = {
   addTask,
   deleteTask,
   updateTask,
+  toggleTaskCompletion,
   getAllCategories
 };
