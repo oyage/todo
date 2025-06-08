@@ -60,6 +60,15 @@
                             class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700"
                             title="期限日を設定（任意）"
                         >
+                        <input 
+                            type="text" 
+                            id="categoryInput" 
+                            placeholder="カテゴリ（任意）" 
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                            list="categoryList"
+                            maxlength="50"
+                        >
+                        <datalist id="categoryList"></datalist>
                         <button 
                             onclick="addTask()" 
                             class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -72,16 +81,28 @@
             
             <div class="mb-6 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
-                <div class="flex gap-2">
-                    <label for="sortOrder" class="text-sm text-gray-600">並び順:</label>
-                    <select 
-                        id="sortOrder" 
-                        onchange="fetchTasks()" 
-                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                    >
-                        <option value="priority">優先度順</option>
-                        <option value="created">作成日順</option>
-                    </select>
+                <div class="flex gap-4">
+                    <div class="flex gap-2 items-center">
+                        <label for="categoryFilter" class="text-sm text-gray-600">カテゴリ:</label>
+                        <select 
+                            id="categoryFilter" 
+                            onchange="fetchTasks()" 
+                            class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                        >
+                            <option value="">すべて</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <label for="sortOrder" class="text-sm text-gray-600">並び順:</label>
+                        <select 
+                            id="sortOrder" 
+                            onchange="fetchTasks()" 
+                            class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                        >
+                            <option value="priority">優先度順</option>
+                            <option value="created">作成日順</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -160,6 +181,62 @@
             }
         }
         
+        function getCategoryColor(category) {
+            if (!category) return null;
+            
+            // Generate a consistent color based on category name
+            let hash = 0;
+            for (let i = 0; i < category.length; i++) {
+                hash = category.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            
+            const colors = [
+                'bg-blue-100 text-blue-800',
+                'bg-green-100 text-green-800',
+                'bg-purple-100 text-purple-800',
+                'bg-pink-100 text-pink-800',
+                'bg-indigo-100 text-indigo-800',
+                'bg-yellow-100 text-yellow-800',
+                'bg-teal-100 text-teal-800',
+                'bg-orange-100 text-orange-800'
+            ];
+            
+            return colors[Math.abs(hash) % colors.length];
+        }
+        
+        async function fetchCategories() {
+            try {
+                const res = await fetch('/categories', {
+                    headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
+                });
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                const categories = await res.json();
+                
+                // Update category filter dropdown
+                const categoryFilter = document.getElementById('categoryFilter');
+                const currentValue = categoryFilter.value;
+                categoryFilter.innerHTML = '<option value="">すべて</option>';
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categoryFilter.appendChild(option);
+                });
+                categoryFilter.value = currentValue;
+                
+                // Update category input datalist
+                const categoryList = document.getElementById('categoryList');
+                categoryList.innerHTML = '';
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    categoryList.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+            }
+        }
+        
         async function fetchTasks() {
             const res = await fetch('/tasks', {
                 headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
@@ -173,6 +250,12 @@
             }
             let tasks = await res.json();
             
+            // Filter tasks by category
+            const categoryFilter = document.getElementById('categoryFilter');
+            if (categoryFilter && categoryFilter.value) {
+                tasks = tasks.filter(task => task.category === categoryFilter.value);
+            }
+            
             // Sort tasks based on selected order
             const sortOrder = document.getElementById('sortOrder').value;
             if (sortOrder === 'created') {
@@ -181,6 +264,9 @@
             
             const list = document.getElementById('taskList');
             list.innerHTML = '';
+            
+            // Fetch and update categories
+            await fetchCategories();
             
             if (tasks.length === 0) {
                 const emptyState = document.createElement('div');
@@ -243,6 +329,15 @@
                 span.textContent = task.text;
                 
                 topRow.appendChild(priorityBadge);
+                
+                // Add category badge if exists
+                if (task.category) {
+                    const categoryBadge = document.createElement('span');
+                    categoryBadge.className = `inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mr-3 ${getCategoryColor(task.category)}`;
+                    categoryBadge.textContent = `🏷️ ${task.category}`;
+                    topRow.appendChild(categoryBadge);
+                }
+                
                 topRow.appendChild(span);
                 
                 taskContent.appendChild(topRow);
@@ -305,14 +400,19 @@
             const input = document.getElementById('newTask');
             const prioritySelect = document.getElementById('prioritySelect');
             const dueDateInput = document.getElementById('dueDateInput');
+            const categoryInput = document.getElementById('categoryInput');
             const task = input.value.trim();
             const priority = prioritySelect.value;
             const dueDate = dueDateInput.value || null;
+            const category = categoryInput.value.trim() || null;
             if (!task) return;
             try {
                 const requestBody = { task, priority };
                 if (dueDate) {
                     requestBody.due_date = dueDate;
+                }
+                if (category) {
+                    requestBody.category = category;
                 }
                 
                 const res = await fetch('/tasks', { 
@@ -330,6 +430,7 @@
                 input.value = '';
                 prioritySelect.value = 'medium';
                 dueDateInput.value = '';
+                categoryInput.value = '';
                 fetchTasks();
             } catch (error) {
                 console.error('Error adding task:', error);
@@ -380,10 +481,24 @@
                 dueDate = dueDateChoice.trim() || null;
             }
             
+            // Category selection dialog
+            const currentCategory = currentTask.category || '';
+            const categoryChoice = prompt(
+                `カテゴリを設定してください:\n\n現在: ${currentCategory || '設定なし'}\n\n空白でカテゴリなし:`
+            );
+            
+            let category = currentTask.category;
+            if (categoryChoice !== null) {
+                category = categoryChoice.trim() || null;
+            }
+            
             try {
                 const requestBody = { task: newTask.trim(), priority };
                 if (dueDate !== undefined) {
                     requestBody.due_date = dueDate;
+                }
+                if (category !== undefined) {
+                    requestBody.category = category;
                 }
                 
                 const res = await fetch(`/tasks/${index}`, { 

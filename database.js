@@ -13,6 +13,7 @@ function initializeDatabase() {
       text TEXT NOT NULL,
       priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
       due_date TEXT,
+      category TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
       if (err) {
@@ -22,8 +23,11 @@ function initializeDatabase() {
         db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, (alterErr) => {
           // Add due_date column to existing tables if it doesn't exist
           db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, (dueDateErr) => {
-            // Ignore errors if columns already exist
-            resolve();
+            // Add category column to existing tables if it doesn't exist
+            db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, (categoryErr) => {
+              // Ignore errors if columns already exist
+              resolve();
+            });
           });
         });
       }
@@ -51,13 +55,13 @@ function getAllTasks() {
   });
 }
 
-function addTask(text, priority = 'medium', dueDate = null) {
+function addTask(text, priority = 'medium', dueDate = null, category = null) {
   return new Promise((resolve, reject) => {
-    db.run('INSERT INTO tasks (text, priority, due_date) VALUES (?, ?, ?)', [text, priority, dueDate], function(err) {
+    db.run('INSERT INTO tasks (text, priority, due_date, category) VALUES (?, ?, ?, ?)', [text, priority, dueDate, category], function(err) {
       if (err) {
         reject(err);
       } else {
-        resolve({ id: this.lastID, text, priority, due_date: dueDate, created_at: new Date().toISOString() });
+        resolve({ id: this.lastID, text, priority, due_date: dueDate, category, created_at: new Date().toISOString() });
       }
     });
   });
@@ -75,7 +79,7 @@ function deleteTask(id) {
   });
 }
 
-function updateTask(id, text, priority, dueDate) {
+function updateTask(id, text, priority, dueDate, category) {
   return new Promise((resolve, reject) => {
     const params = [text];
     let query = 'UPDATE tasks SET text = ?';
@@ -88,6 +92,11 @@ function updateTask(id, text, priority, dueDate) {
     if (dueDate !== undefined) {
       query += ', due_date = ?';
       params.push(dueDate);
+    }
+    
+    if (category !== undefined) {
+      query += ', category = ?';
+      params.push(category);
     }
     
     query += ' WHERE id = ?';
@@ -103,10 +112,23 @@ function updateTask(id, text, priority, dueDate) {
   });
 }
 
+function getAllCategories() {
+  return new Promise((resolve, reject) => {
+    db.all(`SELECT DISTINCT category FROM tasks WHERE category IS NOT NULL AND category != '' ORDER BY category`, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows.map(row => row.category));
+      }
+    });
+  });
+}
+
 module.exports = {
   initializeDatabase,
   getAllTasks,
   addTask,
   deleteTask,
-  updateTask
+  updateTask,
+  getAllCategories
 };
