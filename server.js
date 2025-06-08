@@ -438,10 +438,23 @@ app.post('/tasks', authenticateToken, async (req, res) => {
   }
 });
 
-// New RESTful API endpoints
+// New RESTful API endpoints (ID-based routes must be handled more precisely)
 
-app.delete('/tasks/:id', authenticateToken, async (req, res) => {
+// Helper function to check if a string represents a valid positive integer
+function isValidTaskId(str) {
+  const num = parseInt(str, 10);
+  return Number.isInteger(num) && num > 0 && str === num.toString();
+}
+
+app.delete('/tasks/:id', authenticateToken, async (req, res, next) => {
+  // Only handle if it's a valid positive integer ID
+  Logger.info('DELETE /tasks/:id middleware check', { requestId: req.requestId, id: req.params.id, isValid: isValidTaskId(req.params.id) });
+  if (!isValidTaskId(req.params.id)) {
+    Logger.info('Passing to next route (index-based)', { requestId: req.requestId, id: req.params.id });
+    return next(); // Pass to index-based route
+  }
   try {
+    Logger.info('DELETE /tasks/:id called', { requestId: req.requestId, id: req.params.id });
     const taskId = parseInt(req.params.id, 10);
     
     if (isNaN(taskId) || taskId <= 0) {
@@ -470,25 +483,32 @@ app.delete('/tasks/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.put('/tasks/:id', authenticateToken, async (req, res) => {
+app.put('/tasks/:id', authenticateToken, async (req, res, next) => {
+  // Only handle if it's a valid positive integer ID
+  if (!isValidTaskId(req.params.id)) {
+    return next(); // Pass to index-based route
+  }
   try {
     const taskId = parseInt(req.params.id, 10);
-    const { text, priority, due_date, category, completed } = req.body;
     
     if (isNaN(taskId) || taskId <= 0) {
       Logger.warn('Invalid task ID for update', { requestId: req.requestId, id: req.params.id });
       return res.status(400).json(ErrorResponse.badRequest('Task ID must be a valid positive number'));
     }
+    const { text, task, priority, due_date, category, completed } = req.body;
+    
+    // Support both 'text' (preferred) and 'task' (backward compatibility) fields
+    const taskText = text || task;
     
     const validationErrors = [];
     
-    if (!text) {
+    if (!taskText) {
       validationErrors.push('Task text is required');
-    } else if (typeof text !== 'string') {
+    } else if (typeof taskText !== 'string') {
       validationErrors.push('Task text must be a string');
-    } else if (!text.trim()) {
+    } else if (!taskText.trim()) {
       validationErrors.push('Task text cannot be empty');
-    } else if (text.trim().length > 200) {
+    } else if (taskText.trim().length > 200) {
       validationErrors.push('Task text cannot exceed 200 characters');
     }
     
@@ -521,16 +541,16 @@ app.put('/tasks/:id', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
     }
     
-    Logger.info('Updating task', { requestId: req.requestId, taskId, newText: text.trim() });
+    Logger.info('Updating task', { requestId: req.requestId, taskId, newText: taskText.trim() });
     
-    const updated = await updateTask(taskId, text.trim(), priority, due_date, category?.trim() || null, completed);
+    const updated = await updateTask(taskId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
     
     if (!updated) {
       Logger.warn('Task not found for update', { requestId: req.requestId, taskId });
       return res.status(404).json(ErrorResponse.notFound('Task'));
     }
     
-    Logger.info('Task updated successfully', { requestId: req.requestId, taskId, newText: text.trim() });
+    Logger.info('Task updated successfully', { requestId: req.requestId, taskId, newText: taskText.trim() });
     
     // タスク更新時にキャッシュをクリア
     clearTaskCache();
@@ -538,7 +558,7 @@ app.put('/tasks/:id', authenticateToken, async (req, res) => {
     
     res.json({ 
       id: taskId,
-      text: text.trim(),
+      text: taskText.trim(),
       priority: priority || 'medium',
       due_date: due_date || null,
       category: category?.trim() || null,
@@ -550,15 +570,19 @@ app.put('/tasks/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.patch('/tasks/:id', authenticateToken, async (req, res) => {
+app.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
+  // Only handle if it's a valid positive integer ID
+  if (!isValidTaskId(req.params.id)) {
+    return next(); // Pass to index-based route
+  }
   try {
     const taskId = parseInt(req.params.id, 10);
-    const { completed } = req.body || {};
     
     if (isNaN(taskId) || taskId <= 0) {
       Logger.warn('Invalid task ID for patch', { requestId: req.requestId, id: req.params.id });
       return res.status(400).json(ErrorResponse.badRequest('Task ID must be a valid positive number'));
     }
+    const { completed } = req.body || {};
     
     if (completed !== undefined && typeof completed !== 'boolean') {
       Logger.warn('Invalid completed value for patch', { requestId: req.requestId, completed });
@@ -594,6 +618,234 @@ app.patch('/tasks/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     Logger.error('Error patching task', err, { requestId: req.requestId, id: req.params.id });
     res.status(500).json(ErrorResponse.serverError('Failed to patch task', req.requestId));
+  }
+});
+
+// Backward compatibility endpoints (deprecated) - must be before new API endpoints
+
+app.put('/tasks/:index', authenticateToken, async (req, res) => {
+  try {
+    const idx = parseInt(req.params.index, 10);
+    const { task, text, priority, due_date, category, completed } = req.body;
+    
+    if (isNaN(idx) || idx < 0) {
+      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
+    }
+    
+    const tasks = await getAllTasks();
+    if (idx >= tasks.length) {
+      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
+    }
+    
+    // Support both 'task' (old API) and 'text' (new API) fields
+    const taskText = text || task;
+    
+    const validationErrors = [];
+    
+    if (!taskText) {
+      validationErrors.push('Task text is required');
+    } else if (typeof taskText !== 'string') {
+      validationErrors.push('Task text must be a string');
+    } else if (!taskText.trim()) {
+      validationErrors.push('Task text cannot be empty');
+    } else if (taskText.trim().length > 200) {
+      validationErrors.push('Task text cannot exceed 200 characters');
+    }
+    
+    if (priority !== undefined && !['high', 'medium', 'low'].includes(priority)) {
+      validationErrors.push('Priority must be one of: high, medium, low');
+    }
+    
+    if (due_date !== undefined && due_date !== null) {
+      if (typeof due_date !== 'string') {
+        validationErrors.push('Due date must be a string');
+      } else if (isNaN(Date.parse(due_date))) {
+        validationErrors.push('Due date must be in valid date format (YYYY-MM-DD)');
+      }
+    }
+    
+    if (category !== undefined && category !== null) {
+      if (typeof category !== 'string') {
+        validationErrors.push('Category must be a string');
+      } else if (category.length > 50) {
+        validationErrors.push('Category cannot exceed 50 characters');
+      }
+    }
+    
+    if (completed !== undefined && typeof completed !== 'boolean') {
+      validationErrors.push('Completed status must be a boolean');
+    }
+    
+    if (validationErrors.length > 0) {
+      Logger.warn('Task update validation failed', { requestId: req.requestId, errors: validationErrors, body: req.body });
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
+    }
+    
+    const taskId = tasks[idx].id;
+    const updated = await updateTask(taskId, taskText.trim(), priority, due_date, category?.trim() || null, completed);
+    
+    if (!updated) {
+      return res.status(404).json(ErrorResponse.notFound('Task'));
+    }
+    
+    clearTaskCache();
+    clearCategoryCache();
+    
+    res.json({ message: 'Task updated successfully', task: taskText.trim() });
+  } catch (err) {
+    Logger.error('Error in deprecated update endpoint', err, { requestId: req.requestId });
+    res.status(500).json(ErrorResponse.serverError('Failed to update task', req.requestId));
+  }
+});
+
+app.patch('/tasks/:index/toggle', authenticateToken, async (req, res) => {
+  try {
+    const idx = parseInt(req.params.index, 10);
+    
+    if (isNaN(idx) || idx < 0) {
+      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
+    }
+    
+    const tasks = await getAllTasks();
+    if (idx >= tasks.length) {
+      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
+    }
+    
+    const taskId = tasks[idx].id;
+    Logger.info('Toggle task completion', { requestId: req.requestId, taskId, index: idx, currentCompleted: tasks[idx].completed });
+    
+    const updated = await toggleTaskCompletion(taskId);
+    
+    if (!updated) {
+      return res.status(404).json(ErrorResponse.notFound('Task'));
+    }
+    
+    // Clear cache after toggling
+    clearTaskCache();
+    
+    res.json({ message: 'Task completion toggled successfully' });
+  } catch (err) {
+    Logger.error('Error in deprecated toggle endpoint', err, { requestId: req.requestId });
+    res.status(500).json(ErrorResponse.serverError('Failed to toggle task', req.requestId));
+  }
+});
+
+app.delete('/tasks/:index', authenticateToken, async (req, res) => {
+  try {
+    Logger.info('DELETE /tasks/:index called', { requestId: req.requestId, index: req.params.index });
+    const idx = parseInt(req.params.index, 10);
+    
+    if (isNaN(idx) || idx < 0) {
+      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
+    }
+    
+    const tasks = await getAllTasks();
+    if (idx >= tasks.length) {
+      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
+    }
+    
+    const taskId = tasks[idx].id;
+    const deleted = await deleteTask(taskId);
+    
+    if (!deleted) {
+      return res.status(404).json(ErrorResponse.notFound('Task'));
+    }
+    
+    clearTaskCache();
+    clearCategoryCache();
+    
+    res.status(200).json({ message: 'Task deleted successfully' });
+  } catch (err) {
+    Logger.error('Error in deprecated delete endpoint', err, { requestId: req.requestId });
+    res.status(500).json(ErrorResponse.serverError('Failed to delete task', req.requestId));
+  }
+});
+
+app.post('/tasks/bulk-delete', authenticateToken, async (req, res) => {
+  try {
+    const { indices } = req.body;
+    
+    const validationErrors = [];
+    
+    if (!Array.isArray(indices)) {
+      validationErrors.push('Indices must be an array');
+    } else if (indices.length === 0) {
+      validationErrors.push('At least one index must be provided');
+    }
+    
+    if (validationErrors.length > 0) {
+      Logger.warn('Bulk delete validation failed', { requestId: req.requestId, errors: validationErrors });
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
+    }
+    
+    const tasks = await getAllTasks();
+    const validIndices = indices.filter(idx => 
+      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
+    );
+    
+    if (validIndices.length === 0) {
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', ['No valid indices provided']));
+    }
+    
+    let deletedCount = 0;
+    for (const idx of validIndices.sort((a, b) => b - a)) {
+      const deleted = await deleteTask(tasks[idx].id);
+      if (deleted) deletedCount++;
+    }
+    
+    clearTaskCache();
+    clearCategoryCache();
+    
+    res.json({ message: `${deletedCount} tasks deleted` });
+  } catch (err) {
+    Logger.error('Error in deprecated bulk delete endpoint', err, { requestId: req.requestId });
+    res.status(500).json(ErrorResponse.serverError('Failed to bulk delete tasks', req.requestId));
+  }
+});
+
+app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
+  try {
+    const { indices, completed } = req.body;
+    
+    const validationErrors = [];
+    
+    if (!Array.isArray(indices)) {
+      validationErrors.push('Indices must be an array');
+    } else if (indices.length === 0) {
+      validationErrors.push('At least one index must be provided');
+    }
+    
+    if (typeof completed !== 'boolean') {
+      validationErrors.push('Completed status must be a boolean');
+    }
+    
+    if (validationErrors.length > 0) {
+      Logger.warn('Bulk complete validation failed', { requestId: req.requestId, errors: validationErrors });
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', validationErrors));
+    }
+    
+    const tasks = await getAllTasks();
+    const validIndices = indices.filter(idx => 
+      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
+    );
+    
+    if (validIndices.length === 0) {
+      return res.status(400).json(ErrorResponse.badRequest('Validation failed', ['No valid indices provided']));
+    }
+    
+    let updatedCount = 0;
+    for (const idx of validIndices) {
+      const task = tasks[idx];
+      const updated = await updateTask(task.id, task.text, task.priority, task.due_date, task.category, completed);
+      if (updated) updatedCount++;
+    }
+    
+    clearTaskCache();
+    
+    res.json({ message: `${updatedCount} tasks updated` });
+  } catch (err) {
+    Logger.error('Error in deprecated bulk complete endpoint', err, { requestId: req.requestId });
+    res.status(500).json(ErrorResponse.serverError('Failed to bulk complete tasks', req.requestId));
   }
 });
 
@@ -773,141 +1025,6 @@ app.use((err, req, res, next) => {
   res.status(500).json(ErrorResponse.serverError('An unexpected error occurred', requestId));
 });
 
-// Backward compatibility endpoints (deprecated)
-app.delete('/tasks/:index', authenticateToken, async (req, res) => {
-  try {
-    const idx = parseInt(req.params.index, 10);
-    
-    if (isNaN(idx) || idx < 0) {
-      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
-    }
-    
-    const tasks = await getAllTasks();
-    if (idx >= tasks.length) {
-      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
-    }
-    
-    const taskId = tasks[idx].id;
-    const deleted = await deleteTask(taskId);
-    
-    if (!deleted) {
-      return res.status(404).json(ErrorResponse.notFound('Task'));
-    }
-    
-    res.json({ message: 'Task deleted successfully' });
-  } catch (err) {
-    Logger.error('Error in deprecated delete endpoint', err, { requestId: req.requestId });
-    res.status(500).json(ErrorResponse.serverError('Failed to delete task', req.requestId));
-  }
-});
-
-app.put('/tasks/:index', authenticateToken, async (req, res) => {
-  try {
-    const idx = parseInt(req.params.index, 10);
-    const { task, priority, due_date, category, completed } = req.body;
-    
-    if (isNaN(idx) || idx < 0) {
-      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
-    }
-    
-    const tasks = await getAllTasks();
-    if (idx >= tasks.length) {
-      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
-    }
-    
-    const taskId = tasks[idx].id;
-    const updated = await updateTask(taskId, task, priority, due_date, category, completed);
-    
-    if (!updated) {
-      return res.status(404).json(ErrorResponse.notFound('Task'));
-    }
-    
-    res.json({ message: 'Task updated successfully', task });
-  } catch (err) {
-    Logger.error('Error in deprecated update endpoint', err, { requestId: req.requestId });
-    res.status(500).json(ErrorResponse.serverError('Failed to update task', req.requestId));
-  }
-});
-
-app.patch('/tasks/:index/toggle', authenticateToken, async (req, res) => {
-  try {
-    const idx = parseInt(req.params.index, 10);
-    
-    if (isNaN(idx) || idx < 0) {
-      return res.status(400).json(ErrorResponse.badRequest('Index must be a valid non-negative number'));
-    }
-    
-    const tasks = await getAllTasks();
-    if (idx >= tasks.length) {
-      return res.status(400).json(ErrorResponse.badRequest(`Index ${idx} is out of range`));
-    }
-    
-    const taskId = tasks[idx].id;
-    const updated = await toggleTaskCompletion(taskId);
-    
-    if (!updated) {
-      return res.status(404).json(ErrorResponse.notFound('Task'));
-    }
-    
-    res.json({ message: 'Task completion toggled successfully' });
-  } catch (err) {
-    Logger.error('Error in deprecated toggle endpoint', err, { requestId: req.requestId });
-    res.status(500).json(ErrorResponse.serverError('Failed to toggle task', req.requestId));
-  }
-});
-
-app.post('/tasks/bulk-delete', authenticateToken, async (req, res) => {
-  try {
-    const { indices } = req.body;
-    
-    if (!Array.isArray(indices) || indices.length === 0) {
-      return res.status(400).json(ErrorResponse.badRequest('Valid indices array required'));
-    }
-    
-    const tasks = await getAllTasks();
-    const validIndices = indices.filter(idx => 
-      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
-    );
-    
-    let deletedCount = 0;
-    for (const idx of validIndices.sort((a, b) => b - a)) {
-      const deleted = await deleteTask(tasks[idx].id);
-      if (deleted) deletedCount++;
-    }
-    
-    res.json({ message: `${deletedCount} tasks deleted` });
-  } catch (err) {
-    Logger.error('Error in deprecated bulk delete endpoint', err, { requestId: req.requestId });
-    res.status(500).json(ErrorResponse.serverError('Failed to bulk delete tasks', req.requestId));
-  }
-});
-
-app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
-  try {
-    const { indices, completed } = req.body;
-    
-    if (!Array.isArray(indices) || indices.length === 0 || typeof completed !== 'boolean') {
-      return res.status(400).json(ErrorResponse.badRequest('Valid indices array and completed boolean required'));
-    }
-    
-    const tasks = await getAllTasks();
-    const validIndices = indices.filter(idx => 
-      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
-    );
-    
-    let updatedCount = 0;
-    for (const idx of validIndices) {
-      const task = tasks[idx];
-      const updated = await updateTask(task.id, task.text, task.priority, task.due_date, task.category, completed);
-      if (updated) updatedCount++;
-    }
-    
-    res.json({ message: `${updatedCount} tasks updated` });
-  } catch (err) {
-    Logger.error('Error in deprecated bulk complete endpoint', err, { requestId: req.requestId });
-    res.status(500).json(ErrorResponse.serverError('Failed to bulk complete tasks', req.requestId));
-  }
-});
 
 // 404 handler for undefined routes
 app.use((req, res) => {

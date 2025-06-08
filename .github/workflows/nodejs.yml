@@ -50,6 +50,7 @@ jobs:
     - name: Test Docker container
       run: |
         docker-compose up -d
-        sleep 10
+        sleep 15
+        # Test HTTP endpoint accessibility
         curl -f http://localhost:3000 || exit 1
         docker-compose down

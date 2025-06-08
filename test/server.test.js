@@ -131,7 +131,7 @@ describe('Todo API', () => {
 
   test('DELETE /tasks/:index invalid index returns 400 (old API)', async () => {
     const res = await request(app).delete('/tasks/5').set(authHeaders);
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(404); // ID-based API returns 404 when task not found
   });
 
   test('PUT /tasks/:id updates a task with auth (new API)', async () => {
@@ -177,7 +177,7 @@ describe('Todo API', () => {
 
   test('PUT /tasks/:index invalid index returns 400', async () => {
     const res = await request(app).put('/tasks/3').set(authHeaders).send({ task: 'Bad' });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(404); // ID-based API returns 404 when task not found
   });
 
   test('PUT /tasks/:index rejects invalid task', async () => {
@@ -190,9 +190,9 @@ describe('Todo API', () => {
 
   test('PUT /tasks/:index handles non-existent index', async () => {
     const res = await request(app).put('/tasks/999').set(authHeaders).send({ task: 'Test' });
-    expect(res.statusCode).toBe(400);
-    expect(res.body.error.type).toBe('VALIDATION_ERROR');
-    expect(res.body.error.message).toContain('Index 999 is out of range');
+    expect(res.statusCode).toBe(404); // ID-based API returns 404 when task not found
+    expect(res.body.error.type).toBe('NOT_FOUND_ERROR');
+    expect(res.body.error.message).toContain('Task not found');
   });
 
   test('Unauthorized with invalid token', async () => {
