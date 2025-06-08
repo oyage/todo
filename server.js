@@ -26,6 +26,7 @@ app.get('/tasks', authenticateToken, async (req, res) => {
     const { search, category } = req.query;
     const tasks = await getAllTasks(search, category);
     res.json(tasks.map(task => ({ 
+      id: task.id,
       text: task.text, 
       priority: task.priority || 'medium',
       due_date: task.due_date,

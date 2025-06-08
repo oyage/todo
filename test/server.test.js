@@ -50,7 +50,7 @@ describe('Todo API', () => {
   test('POST /tasks adds a task with auth', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'Test', priority: 'medium', due_date: null, category: null, completed: false }]);
+    expect(res.body).toEqual([{ id: expect.any(Number), text: 'Test', priority: 'medium', due_date: null, category: null, completed: false }]);
   });
 
   test('POST /tasks returns 401 without auth', async () => {
@@ -88,7 +88,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'New' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'New', priority: 'medium', due_date: null, category: null, completed: false }]);
+    expect(res.body).toEqual([{ id: expect.any(Number), text: 'New', priority: 'medium', due_date: null, category: null, completed: false }]);
   });
 
   test('PUT /tasks/:index returns 401 without auth', async () => {
@@ -127,15 +127,15 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveLength(2);
-    expect(res.body[0]).toEqual({ text: 'High Priority Task', priority: 'high', due_date: null, category: null, completed: false });
-    expect(res.body[1]).toEqual({ text: 'Low Priority Task', priority: 'low', due_date: null, category: null, completed: false });
+    expect(res.body[0]).toEqual({ id: expect.any(Number), text: 'High Priority Task', priority: 'high', due_date: null, category: null, completed: false });
+    expect(res.body[1]).toEqual({ id: expect.any(Number), text: 'Low Priority Task', priority: 'low', due_date: null, category: null, completed: false });
   });
 
   test('POST /tasks defaults to medium priority', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Default Priority Task' });
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
-    expect(res.body[0]).toEqual({ text: 'Default Priority Task', priority: 'medium', due_date: null, category: null, completed: false });
+    expect(res.body[0]).toEqual({ id: expect.any(Number), text: 'Default Priority Task', priority: 'medium', due_date: null, category: null, completed: false });
   });
 
   test('POST /tasks rejects invalid priority', async () => {
@@ -149,7 +149,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'Test Task', priority: 'high' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body[0]).toEqual({ text: 'Test Task', priority: 'high', due_date: null, category: null, completed: false });
+    expect(res.body[0]).toEqual({ id: expect.any(Number), text: 'Test Task', priority: 'high', due_date: null, category: null, completed: false });
   });
 
   test('PUT /tasks/:index rejects invalid priority', async () => {
@@ -166,21 +166,30 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveLength(3);
-    expect(res.body[0].text).toBe('High Task');
-    expect(res.body[0].priority).toBe('high');
-    expect(res.body[0].due_date).toBe(null);
-    expect(res.body[0].category).toBe(null);
-    expect(res.body[0].completed).toBe(false);
-    expect(res.body[1].text).toBe('Medium Task');
-    expect(res.body[1].priority).toBe('medium');
-    expect(res.body[1].due_date).toBe(null);
-    expect(res.body[1].category).toBe(null);
-    expect(res.body[1].completed).toBe(false);
-    expect(res.body[2].text).toBe('Low Task');
-    expect(res.body[2].priority).toBe('low');
-    expect(res.body[2].due_date).toBe(null);
-    expect(res.body[2].category).toBe(null);
-    expect(res.body[2].completed).toBe(false);
+    expect(res.body[0]).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      text: 'High Task',
+      priority: 'high',
+      due_date: null,
+      category: null,
+      completed: false
+    }));
+    expect(res.body[1]).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      text: 'Medium Task',
+      priority: 'medium',
+      due_date: null,
+      category: null,
+      completed: false
+    }));
+    expect(res.body[2]).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      text: 'Low Task',
+      priority: 'low',
+      due_date: null,
+      category: null,
+      completed: false
+    }));
   });
 
   test('POST /tasks accepts due_date parameter', async () => {
@@ -193,6 +202,7 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body[0]).toEqual({ 
+      id: expect.any(Number),
       text: 'Task with deadline', 
       priority: 'high',
       due_date: dueDate,
@@ -209,6 +219,7 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body[0]).toEqual({ 
+      id: expect.any(Number),
       text: 'Task without deadline', 
       priority: 'medium',
       due_date: null,
@@ -272,6 +283,7 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body[0]).toEqual({ 
+      id: expect.any(Number),
       text: 'Task with category', 
       priority: 'high',
       due_date: null,
@@ -288,6 +300,7 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body[0]).toEqual({ 
+      id: expect.any(Number),
       text: 'Task without category', 
       priority: 'medium',
       due_date: null,
@@ -427,6 +440,7 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body[0]).toEqual({ 
+      id: expect.any(Number),
       text: 'Test task', 
       priority: 'medium', 
       due_date: null, 
