@@ -8,7 +8,7 @@ node_modules/
 *.bak
 *~
 .DS_Store
-docker_data/
+docker-data/
 
 # Editor files
 .vscode/
