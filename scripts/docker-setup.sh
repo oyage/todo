@@ -13,10 +13,17 @@ mkdir -p docker-data/data
 mkdir -p docker-data/ssl
 mkdir -p docker-data/logs
 
-# 権限設定（非rootユーザー用）
+# 権限設定（現在のユーザーで作成してから変更）
 echo "🔒 ディレクトリの権限を設定しています..."
-sudo chown -R 1001:1001 docker-data/
 chmod -R 755 docker-data/
+
+# Dockerグループの確認とユーザー追加の案内
+if ! groups $USER | grep -q '\bdocker\b'; then
+    echo "⚠️  現在のユーザーがdockerグループに属していません。"
+    echo "   以下のコマンドを実行してdockerグループに追加してください："
+    echo "   sudo usermod -aG docker $USER"
+    echo "   その後、ログアウト・ログインしてから再実行してください。"
+fi
 
 # SSL証明書の生成（開発環境用）
 if [ ! -f "docker-data/ssl/private.key" ] || [ ! -f "docker-data/ssl/cert.pem" ]; then
@@ -29,7 +36,6 @@ if [ ! -f "docker-data/ssl/private.key" ] || [ ! -f "docker-data/ssl/cert.pem" ]
     # SSL証明書の権限設定
     chmod 600 docker-data/ssl/private.key
     chmod 644 docker-data/ssl/cert.pem
-    chown 1001:1001 docker-data/ssl/*
 fi
 
 # .env.dockerファイルの確認

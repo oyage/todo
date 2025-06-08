@@ -16,11 +16,15 @@ npm test
 
 Start with Docker (セキュリティ強化版):
 ```bash
-# セットアップ（初回のみ）
-npm run docker:setup
+# 簡単起動（推奨）
+npm run docker:start
 
-# アプリケーション起動
+# または手動起動
+# 通常版（bind mount使用）
 npm run docker:up
+
+# 簡易版（named volume使用、ボリューム問題がある場合）
+npm run docker:up-simple
 
 # ログ確認
 npm run docker:logs
@@ -29,7 +33,7 @@ npm run docker:logs
 npm run docker:security-audit
 
 # 停止
-npm run docker:down
+npm run docker:down  # または docker:down-simple
 ```
 
 ## Architecture

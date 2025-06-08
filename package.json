@@ -12,8 +12,11 @@
     "security-check": "npm audit",
     "security-fix": "npm audit fix",
     "docker:setup": "./scripts/docker-setup.sh",
+    "docker:start": "./scripts/docker-start.sh",
     "docker:up": "docker-compose --env-file .env.docker up -d",
+    "docker:up-simple": "docker-compose -f docker-compose.simple.yml --env-file .env.docker up -d",
     "docker:down": "docker-compose down",
+    "docker:down-simple": "docker-compose -f docker-compose.simple.yml down",
     "docker:logs": "docker-compose logs -f todo-app",
     "docker:security-audit": "./scripts/docker-security-audit.sh",
     "docker:build": "docker-compose build --no-cache"

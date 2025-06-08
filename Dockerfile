@@ -22,7 +22,9 @@ COPY --chown=nextjs:nodejs . .
 # データディレクトリの作成と権限設定
 RUN mkdir -p /app/data && \
     mkdir -p /app/ssl && \
-    chown -R nextjs:nodejs /app
+    chown -R nextjs:nodejs /app && \
+    chmod -R 755 /app/data && \
+    chmod -R 755 /app/ssl
 
 # セキュリティ: 不要なパッケージの削除
 RUN apk del --no-cache \

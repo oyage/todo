@@ -10,7 +10,7 @@ services:
       - "3000:3000"
       - "3443:3443"
     
-    # ボリューム設定 - データとSSL証明書
+    # 簡単なボリューム設定（named volumes使用）
     volumes:
       - todo-data:/app/data:rw
       - todo-ssl:/app/ssl:rw
@@ -31,7 +31,6 @@ services:
     # セキュリティ制約
     security_opt:
       - no-new-privileges:true  # 新しい権限の取得を禁止
-      - seccomp:unconfined      # 必要に応じてseccompプロファイルを設定
     
     # リソース制限
     deploy:
@@ -47,7 +46,7 @@ services:
     networks:
       - todo-network
     
-    # ヘルスチェック（Dockerfileと重複するがdocker-composeでも明示）
+    # ヘルスチェック
     healthcheck:
       test: ["CMD", "node", "-e", "const http = require('http'); const options = { hostname: 'localhost', port: 3000, path: '/', method: 'HEAD' }; const req = http.request(options, (res) => { if (res.statusCode === 200) process.exit(0); else process.exit(1); }); req.on('error', () => process.exit(1)); req.end();"]
       interval: 30s
@@ -58,8 +57,7 @@ services:
     # 再起動ポリシー
     restart: unless-stopped
     
-    # 読み取り専用ファイルシステム（一部ディレクトリを除く）
-    read_only: false  # SQLiteのためfalseに設定
+    # tmpfs設定
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=100m
     
@@ -86,15 +84,8 @@ services:
 networks:
   todo-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-    driver_opts:
-      com.docker.network.bridge.enable_icc: "true"
-      com.docker.network.bridge.enable_ip_masquerade: "true"
-      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0"
 
-# セキュアなボリューム設定
+# 簡単なボリューム設定
 volumes:
   todo-data:
     driver: local
