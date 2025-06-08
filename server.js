@@ -134,6 +134,73 @@ app.patch('/tasks/:index/toggle', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/tasks/bulk-delete', authenticateToken, async (req, res) => {
+  try {
+    const { indices } = req.body;
+    if (!Array.isArray(indices) || indices.length === 0) {
+      return res.status(400).json({ error: 'invalid indices array' });
+    }
+    
+    const tasks = await getAllTasks();
+    const validIndices = indices.filter(idx => 
+      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
+    );
+    
+    if (validIndices.length === 0) {
+      return res.status(400).json({ error: 'no valid indices provided' });
+    }
+    
+    // Sort indices in descending order to avoid index shifting issues
+    const sortedIndices = validIndices.sort((a, b) => b - a);
+    let deletedCount = 0;
+    
+    for (const idx of sortedIndices) {
+      const taskId = tasks[idx].id;
+      const deleted = await deleteTask(taskId);
+      if (deleted) deletedCount++;
+    }
+    
+    res.json({ message: `${deletedCount} tasks deleted` });
+  } catch (err) {
+    console.error('Error in POST /tasks/bulk-delete:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/tasks/bulk-complete', authenticateToken, async (req, res) => {
+  try {
+    const { indices, completed } = req.body;
+    if (!Array.isArray(indices) || indices.length === 0) {
+      return res.status(400).json({ error: 'invalid indices array' });
+    }
+    if (typeof completed !== 'boolean') {
+      return res.status(400).json({ error: 'invalid completed value' });
+    }
+    
+    const tasks = await getAllTasks();
+    const validIndices = indices.filter(idx => 
+      Number.isInteger(idx) && idx >= 0 && idx < tasks.length
+    );
+    
+    if (validIndices.length === 0) {
+      return res.status(400).json({ error: 'no valid indices provided' });
+    }
+    
+    let updatedCount = 0;
+    
+    for (const idx of validIndices) {
+      const task = tasks[idx];
+      const updated = await updateTask(task.id, task.text, task.priority, task.due_date, task.category, completed);
+      if (updated) updatedCount++;
+    }
+    
+    res.json({ message: `${updatedCount} tasks updated` });
+  } catch (err) {
+    console.error('Error in POST /tasks/bulk-complete:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/categories', authenticateToken, async (req, res) => {
   try {
     const categories = await getAllCategories();

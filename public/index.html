@@ -81,7 +81,45 @@
             
             <div class="mb-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="checkbox" 
+                                id="selectAllCheckbox" 
+                                class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                onchange="toggleSelectAll()"
+                            >
+                            <label for="selectAllCheckbox" class="text-sm text-gray-600 cursor-pointer">すべて選択</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bulk Actions Bar (hidden by default) -->
+                <div id="bulkActionsBar" class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 hidden">
+                    <div class="flex items-center justify-between">
+                        <span id="selectedCount" class="text-sm text-blue-700 font-medium">0個のタスクが選択されています</span>
+                        <div class="flex gap-2">
+                            <button 
+                                onclick="bulkComplete()" 
+                                class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 text-sm font-medium"
+                            >
+                                ✓ 一括完了
+                            </button>
+                            <button 
+                                onclick="bulkIncomplete()" 
+                                class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors duration-200 text-sm font-medium"
+                            >
+                                ↺ 未完了に戻す
+                            </button>
+                            <button 
+                                onclick="bulkDelete()" 
+                                class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 text-sm font-medium"
+                            >
+                                🗑️ 一括削除
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Search and Filter Controls -->
@@ -297,6 +335,150 @@
             }
         }
 
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const taskCheckboxes = document.querySelectorAll('.task-select-checkbox');
+            
+            taskCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            
+            updateSelectionState();
+        }
+
+        function updateSelectionState() {
+            const taskCheckboxes = document.querySelectorAll('.task-select-checkbox');
+            const checkedCheckboxes = document.querySelectorAll('.task-select-checkbox:checked');
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const bulkActionsBar = document.getElementById('bulkActionsBar');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            const selectedCount_val = checkedCheckboxes.length;
+            const totalCount = taskCheckboxes.length;
+            
+            // Update select all checkbox state
+            if (selectedCount_val === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedCount_val === totalCount) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+            
+            // Show/hide bulk actions bar
+            if (selectedCount_val > 0) {
+                bulkActionsBar.classList.remove('hidden');
+                selectedCount.textContent = `${selectedCount_val}個のタスクが選択されています`;
+            } else {
+                bulkActionsBar.classList.add('hidden');
+            }
+        }
+
+        function getSelectedTaskIndices() {
+            const checkedCheckboxes = document.querySelectorAll('.task-select-checkbox:checked');
+            return Array.from(checkedCheckboxes).map(checkbox => parseInt(checkbox.dataset.taskIndex));
+        }
+
+        async function bulkDelete() {
+            const selectedIndices = getSelectedTaskIndices();
+            if (selectedIndices.length === 0) {
+                alert('削除するタスクを選択してください');
+                return;
+            }
+            
+            if (!confirm(`選択した${selectedIndices.length}個のタスクを削除しますか？`)) {
+                return;
+            }
+            
+            try {
+                const res = await fetch('/tasks/bulk-delete', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ indices: selectedIndices })
+                });
+                
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                const result = await res.json();
+                fetchTasks();
+                alert(result.message);
+            } catch (error) {
+                console.error('Error bulk deleting tasks:', error);
+                alert('一括削除に失敗しました');
+            }
+        }
+
+        async function bulkComplete() {
+            const selectedIndices = getSelectedTaskIndices();
+            if (selectedIndices.length === 0) {
+                alert('完了するタスクを選択してください');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/tasks/bulk-complete', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ indices: selectedIndices, completed: true })
+                });
+                
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                const result = await res.json();
+                fetchTasks();
+                alert(result.message);
+            } catch (error) {
+                console.error('Error bulk completing tasks:', error);
+                alert('一括完了に失敗しました');
+            }
+        }
+
+        async function bulkIncomplete() {
+            const selectedIndices = getSelectedTaskIndices();
+            if (selectedIndices.length === 0) {
+                alert('未完了に戻すタスクを選択してください');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/tasks/bulk-complete', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ indices: selectedIndices, completed: false })
+                });
+                
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                
+                const result = await res.json();
+                fetchTasks();
+                alert(result.message);
+            } catch (error) {
+                console.error('Error bulk updating tasks to incomplete:', error);
+                alert('一括未完了更新に失敗しました');
+            }
+        }
+
         async function fetchTasks() {
             try {
                 const searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
@@ -384,12 +566,19 @@
                 const leftSection = document.createElement('div');
                 leftSection.className = 'flex items-center flex-1 mr-4';
 
+                // Checkbox for selection
+                const selectCheckbox = document.createElement('input');
+                selectCheckbox.type = 'checkbox';
+                selectCheckbox.className = 'mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer task-select-checkbox';
+                selectCheckbox.dataset.taskIndex = i;
+                selectCheckbox.addEventListener('change', updateSelectionState);
+
                 // Checkbox for completion
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = task.completed;
-                checkbox.className = 'mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
-                checkbox.addEventListener('change', () => toggleTaskCompletion(i));
+                const completionCheckbox = document.createElement('input');
+                completionCheckbox.type = 'checkbox';
+                completionCheckbox.checked = task.completed;
+                completionCheckbox.className = 'mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
+                completionCheckbox.addEventListener('change', () => toggleTaskCompletion(i));
 
                 const taskContent = document.createElement('div');
                 taskContent.className = 'flex-1';
@@ -471,7 +660,8 @@
                     taskContent.appendChild(deadlineRow);
                 }
 
-                leftSection.appendChild(checkbox);
+                leftSection.appendChild(selectCheckbox);
+                leftSection.appendChild(completionCheckbox);
                 leftSection.appendChild(taskContent);
 
                 const btnContainer = document.createElement('div');
@@ -496,6 +686,18 @@
 
                 list.appendChild(li);
             });
+            
+            // Reset selection state after updating tasks
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+            const bulkActionsBar = document.getElementById('bulkActionsBar');
+            if (bulkActionsBar) {
+                bulkActionsBar.classList.add('hidden');
+            }
+            
             } catch (error) {
                 console.error('Error fetching tasks:', error);
                 alert('タスクの取得に失敗しました');

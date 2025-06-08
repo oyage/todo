@@ -508,6 +508,131 @@ describe('Todo API', () => {
     expect(res.body[1].completed).toBe(true);
   });
 
+  test('POST /tasks/bulk-delete deletes multiple tasks', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 2' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 3' });
+    
+    const deleteRes = await request(app).post('/tasks/bulk-delete').set(authHeaders).send({
+      indices: [0, 2]
+    });
+    expect(deleteRes.statusCode).toBe(200);
+    expect(deleteRes.body.message).toBe('2 tasks deleted');
+    
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].text).toBe('Task 2');
+  });
+
+  test('POST /tasks/bulk-delete returns 401 without auth', async () => {
+    const res = await request(app).post('/tasks/bulk-delete').send({
+      indices: [0]
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
+  test('POST /tasks/bulk-delete rejects invalid indices array', async () => {
+    const res = await request(app).post('/tasks/bulk-delete').set(authHeaders).send({
+      indices: 'not-an-array'
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid indices array');
+  });
+
+  test('POST /tasks/bulk-delete rejects empty indices array', async () => {
+    const res = await request(app).post('/tasks/bulk-delete').set(authHeaders).send({
+      indices: []
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid indices array');
+  });
+
+  test('POST /tasks/bulk-delete handles invalid indices gracefully', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1' });
+    
+    const res = await request(app).post('/tasks/bulk-delete').set(authHeaders).send({
+      indices: [999, -1, 'invalid']
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('no valid indices provided');
+  });
+
+  test('POST /tasks/bulk-complete marks multiple tasks as completed', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 2' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 3' });
+    
+    const completeRes = await request(app).post('/tasks/bulk-complete').set(authHeaders).send({
+      indices: [0, 2],
+      completed: true
+    });
+    expect(completeRes.statusCode).toBe(200);
+    expect(completeRes.body.message).toBe('2 tasks updated');
+    
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body).toHaveLength(3);
+    
+    // Task 2 (index 1) should remain incomplete and come first
+    expect(res.body[0].text).toBe('Task 2');
+    expect(res.body[0].completed).toBe(false);
+    
+    // Tasks 1 and 3 should be completed and come after
+    expect(res.body[1].completed).toBe(true);
+    expect(res.body[2].completed).toBe(true);
+  });
+
+  test('POST /tasks/bulk-complete marks multiple tasks as incomplete', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1' });
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 2' });
+    
+    // First mark them as completed
+    await request(app).patch('/tasks/0/toggle').set(authHeaders);
+    await request(app).patch('/tasks/1/toggle').set(authHeaders);
+    
+    // Then mark them as incomplete using bulk operation
+    const incompleteRes = await request(app).post('/tasks/bulk-complete').set(authHeaders).send({
+      indices: [0, 1],
+      completed: false
+    });
+    expect(incompleteRes.statusCode).toBe(200);
+    expect(incompleteRes.body.message).toBe('2 tasks updated');
+    
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].completed).toBe(false);
+    expect(res.body[1].completed).toBe(false);
+  });
+
+  test('POST /tasks/bulk-complete returns 401 without auth', async () => {
+    const res = await request(app).post('/tasks/bulk-complete').send({
+      indices: [0],
+      completed: true
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
+  test('POST /tasks/bulk-complete rejects invalid completed value', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Task 1' });
+    
+    const res = await request(app).post('/tasks/bulk-complete').set(authHeaders).send({
+      indices: [0],
+      completed: 'invalid'
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid completed value');
+  });
+
+  test('POST /tasks/bulk-complete rejects invalid indices array', async () => {
+    const res = await request(app).post('/tasks/bulk-complete').set(authHeaders).send({
+      indices: 'not-an-array',
+      completed: true
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid indices array');
+  });
+
   // test('index.html escapes task text content', async () => {
   //   const malicious = '<img src=x onerror="alert(1)">';
   //   await request(app).post('/tasks').set(authHeaders).send({ task: malicious });
