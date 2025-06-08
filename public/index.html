@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TODOアプリ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -26,52 +26,75 @@
             from { opacity: 0; transform: translateX(-20px); }
             to { opacity: 1; transform: translateX(0); }
         }
+        
+        /* Improve mobile touch targets */
+        @media (max-width: 640px) {
+            input, button, select {
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            
+            /* Improve tap highlighting */
+            button, input[type="checkbox"] {
+                -webkit-tap-highlight-color: rgba(59, 130, 246, 0.3);
+            }
+            
+            /* Better scrolling on mobile */
+            body {
+                -webkit-overflow-scrolling: touch;
+                overflow-scrolling: touch;
+            }
+        }
+        
+        /* Touch manipulation for better mobile performance */
+        .touch-manipulation {
+            touch-action: manipulation;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-2xl">
-        <div class="bg-white rounded-2xl shadow-xl p-8 animate-fade-in">
-            <h1 class="text-4xl font-bold text-center mb-8 text-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div class="container mx-auto px-4 py-4 sm:py-8 max-w-2xl">
+        <div class="bg-white rounded-2xl shadow-xl p-4 sm:p-8 animate-fade-in">
+            <h1 class="text-2xl sm:text-4xl font-bold text-center mb-4 sm:mb-8 text-gray-800 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 TODOアプリ
             </h1>
             
-            <div class="mb-8">
+            <div class="mb-4 sm:mb-8">
                 <div class="space-y-3">
-                    <div class="flex gap-3">
+                    <div class="flex flex-col sm:flex-row gap-3">
                         <input 
                             type="text" 
                             id="newTask" 
                             placeholder="新しいタスクを入力..." 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                         >
                         <select 
                             id="prioritySelect" 
-                            class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700"
+                            class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 min-w-0 sm:min-w-fit"
                         >
                             <option value="high">🔴 高</option>
                             <option value="medium" selected>🟡 中</option>
                             <option value="low">🟢 低</option>
                         </select>
                     </div>
-                    <div class="flex gap-3">
+                    <div class="flex flex-col sm:flex-row gap-3">
                         <input 
                             type="date" 
                             id="dueDateInput" 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 text-base"
                             title="期限日を設定（任意）"
                         >
                         <input 
                             type="text" 
                             id="categoryInput" 
                             placeholder="カテゴリ（任意）" 
-                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                            class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                             list="categoryList"
                             maxlength="50"
                         >
                         <datalist id="categoryList"></datalist>
                         <button 
                             onclick="addTask()" 
-                            class="px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
+                            class="w-full sm:w-auto px-6 sm:px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 text-base touch-manipulation"
                         >
                             追加
                         </button>
@@ -97,24 +120,24 @@
                 
                 <!-- Bulk Actions Bar (hidden by default) -->
                 <div id="bulkActionsBar" class="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 hidden">
-                    <div class="flex items-center justify-between">
-                        <span id="selectedCount" class="text-sm text-blue-700 font-medium">0個のタスクが選択されています</span>
-                        <div class="flex gap-2">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <span id="selectedCount" class="text-sm text-blue-700 font-medium text-center sm:text-left">0個のタスクが選択されています</span>
+                        <div class="flex flex-col sm:flex-row gap-2">
                             <button 
                                 onclick="bulkComplete()" 
-                                class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 text-sm font-medium"
+                                class="w-full sm:w-auto px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0"
                             >
                                 ✓ 一括完了
                             </button>
                             <button 
                                 onclick="bulkIncomplete()" 
-                                class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors duration-200 text-sm font-medium"
+                                class="w-full sm:w-auto px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0"
                             >
                                 ↺ 未完了に戻す
                             </button>
                             <button 
                                 onclick="bulkDelete()" 
-                                class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 text-sm font-medium"
+                                class="w-full sm:w-auto px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0"
                             >
                                 🗑️ 一括削除
                             </button>
@@ -123,15 +146,15 @@
                 </div>
                 
                 <!-- Search and Filter Controls -->
-                <div class="bg-gray-50 rounded-xl p-4 mb-4">
-                    <div class="flex flex-wrap gap-3 items-center">
-                        <div class="flex-1 min-w-64">
+                <div class="bg-gray-50 rounded-xl p-3 sm:p-4 mb-4">
+                    <div class="space-y-3 sm:space-y-0 sm:flex sm:flex-wrap sm:gap-3 sm:items-center">
+                        <div class="w-full sm:flex-1 sm:min-w-0">
                             <div class="relative">
                                 <input 
                                     type="text" 
                                     id="searchInput" 
                                     placeholder="🔍 タスクを検索..." 
-                                    class="w-full px-4 py-2 pl-10 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
+                                    class="w-full px-4 py-3 sm:py-2 pl-10 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400 text-base"
                                     oninput="debounceSearch()"
                                 >
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -139,34 +162,36 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="flex gap-2 items-center">
-                            <label for="categoryFilter" class="text-sm text-gray-600 whitespace-nowrap">カテゴリ:</label>
-                            <select 
-                                id="categoryFilter" 
-                                onchange="fetchTasks()" 
-                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-2 sm:items-center">
+                            <div class="flex gap-2 items-center">
+                                <label for="categoryFilter" class="text-sm text-gray-600 whitespace-nowrap min-w-fit">カテゴリ:</label>
+                                <select 
+                                    id="categoryFilter" 
+                                    onchange="fetchTasks()" 
+                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="">すべて</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 items-center">
+                                <label for="sortOrder" class="text-sm text-gray-600 whitespace-nowrap min-w-fit">並び順:</label>
+                                <select 
+                                    id="sortOrder" 
+                                    onchange="handleSortChange()" 
+                                    class="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                                >
+                                    <option value="priority">優先度順</option>
+                                    <option value="created">作成日順</option>
+                                    <option value="manual">手動並び替え</option>
+                                </select>
+                            </div>
+                            <button 
+                                onclick="clearFilters()" 
+                                class="w-full sm:w-auto px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-sm font-medium touch-manipulation"
                             >
-                                <option value="">すべて</option>
-                            </select>
+                                🗑️ クリア
+                            </button>
                         </div>
-                        <div class="flex gap-2 items-center">
-                            <label for="sortOrder" class="text-sm text-gray-600 whitespace-nowrap">並び順:</label>
-                            <select 
-                                id="sortOrder" 
-                                onchange="handleSortChange()" 
-                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                            >
-                                <option value="priority">優先度順</option>
-                                <option value="created">作成日順</option>
-                                <option value="manual">手動並び替え</option>
-                            </select>
-                        </div>
-                        <button 
-                            onclick="clearFilters()" 
-                            class="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 text-sm font-medium whitespace-nowrap"
-                        >
-                            🗑️ クリア
-                        </button>
                     </div>
                 </div>
             </div>
@@ -371,9 +396,23 @@
             }
 
             console.log('Making task draggable:', task.text, 'ID:', task.id);
+            
+            // Better mobile support
+            const isMobile = window.innerWidth <= 640;
             taskElement.draggable = true;
-            taskElement.style.cursor = 'grab';
+            taskElement.style.cursor = isMobile ? 'default' : 'grab';
+            taskElement.style.touchAction = 'manipulation';
             taskElement.setAttribute('data-drag-listeners', 'true');
+            
+            // Add visual indicator for mobile drag
+            if (isMobile) {
+                const dragHandle = document.createElement('div');
+                dragHandle.className = 'absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:hidden';
+                dragHandle.innerHTML = '⋮⋮';
+                dragHandle.style.pointerEvents = 'none';
+                taskElement.style.position = 'relative';
+                taskElement.appendChild(dragHandle);
+            }
             
             taskElement.addEventListener('dragstart', (e) => {
                 draggedElement = taskElement;
@@ -723,7 +762,7 @@
             
             tasks.forEach((task, i) => {
                 const li = document.createElement('li');
-                li.className = `rounded-xl p-4 border transition-all duration-200 animate-slide-in ${
+                li.className = `rounded-xl p-3 sm:p-4 border transition-all duration-200 animate-slide-in ${
                     task.completed 
                         ? 'bg-gray-100 border-gray-300 opacity-75' 
                         : 'bg-gray-50 border-gray-200 hover:border-blue-300'
@@ -732,15 +771,15 @@
                 li.dataset.taskId = task.id;
 
                 const wrapper = document.createElement('div');
-                wrapper.className = 'flex items-center justify-between';
+                wrapper.className = 'flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0 sm:justify-between';
 
                 const leftSection = document.createElement('div');
-                leftSection.className = 'flex items-center flex-1 mr-4';
+                leftSection.className = 'flex items-center flex-1 sm:mr-4';
 
                 // Checkbox for selection
                 const selectCheckbox = document.createElement('input');
                 selectCheckbox.type = 'checkbox';
-                selectCheckbox.className = 'mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer task-select-checkbox';
+                selectCheckbox.className = 'mr-2 h-5 w-5 sm:h-4 sm:w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer task-select-checkbox touch-manipulation';
                 selectCheckbox.dataset.taskIndex = i;
                 selectCheckbox.addEventListener('change', updateSelectionState);
 
@@ -748,7 +787,7 @@
                 const completionCheckbox = document.createElement('input');
                 completionCheckbox.type = 'checkbox';
                 completionCheckbox.checked = task.completed;
-                completionCheckbox.className = 'mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer';
+                completionCheckbox.className = 'mr-3 h-6 w-6 sm:h-5 sm:w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer touch-manipulation';
                 completionCheckbox.addEventListener('change', () => toggleTaskCompletion(i));
 
                 const taskContent = document.createElement('div');
@@ -836,15 +875,15 @@
                 leftSection.appendChild(taskContent);
 
                 const btnContainer = document.createElement('div');
-                btnContainer.className = 'flex gap-2';
+                btnContainer.className = 'flex gap-2 w-full sm:w-auto';
 
                 const editBtn = document.createElement('button');
-                editBtn.className = 'px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium';
+                editBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
                 editBtn.textContent = '✏️ 編集';
                 editBtn.addEventListener('click', () => editTask(i, task));
 
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium';
+                deleteBtn.className = 'flex-1 sm:flex-none px-4 sm:px-3 py-2 sm:py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors duration-200 text-sm font-medium touch-manipulation min-h-[44px] sm:min-h-0';
                 deleteBtn.textContent = '🗑️ 削除';
                 deleteBtn.addEventListener('click', () => deleteTask(i));
 
