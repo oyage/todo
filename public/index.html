@@ -361,8 +361,174 @@
         </div>
     </div>
 
+    <!-- Toast notification container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
     <script>
         const BEARER_TOKEN = 'your-secret-token';
+        
+        // Enhanced Error Handling System
+        class ErrorHandler {
+            static showToast(message, type = 'error', duration = 5000) {
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                
+                const toast = document.createElement('div');
+                toast.className = `max-w-sm bg-white dark:bg-gray-800 border-l-4 p-4 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 ease-in-out animate-fade-in`;
+                
+                switch(type) {
+                    case 'error':
+                        toast.className += ' border-red-500';
+                        break;
+                    case 'warning':
+                        toast.className += ' border-yellow-500';
+                        break;
+                    case 'success':
+                        toast.className += ' border-green-500';
+                        break;
+                    case 'info':
+                        toast.className += ' border-blue-500';
+                        break;
+                }
+                
+                const icon = type === 'error' ? '❌' : 
+                           type === 'warning' ? '⚠️' : 
+                           type === 'success' ? '✅' : 'ℹ️';
+                
+                toast.innerHTML = `
+                    <div class="flex items-start">
+                        <span class="text-lg mr-3">${icon}</span>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-800 dark:text-white">${message}</p>
+                        </div>
+                        <button onclick="this.parentElement.parentElement.remove()" class="ml-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <span class="text-sm">✕</span>
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(toast);
+                
+                // Slide in animation
+                setTimeout(() => {
+                    toast.classList.remove('translate-x-full');
+                }, 100);
+                
+                // Auto remove
+                setTimeout(() => {
+                    toast.classList.add('translate-x-full');
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+            
+            static handleApiError(error, context = '') {
+                console.error(`API Error${context ? ` in ${context}` : ''}:`, error);
+                
+                if (error.response) {
+                    // Server responded with error status
+                    const errorData = error.response;
+                    
+                    if (errorData.error && errorData.error.type) {
+                        switch(errorData.error.type) {
+                            case 'AUTHENTICATION_ERROR':
+                                this.showToast('認証に失敗しました。ページを再読み込みしてください。', 'error');
+                                break;
+                            case 'VALIDATION_ERROR':
+                                const details = errorData.error.details;
+                                if (Array.isArray(details)) {
+                                    details.forEach(detail => this.showToast(detail, 'warning', 7000));
+                                } else {
+                                    this.showToast(errorData.error.message || '入力内容に問題があります', 'warning');
+                                }
+                                break;
+                            case 'NOT_FOUND_ERROR':
+                                this.showToast('指定されたデータが見つかりません', 'error');
+                                break;
+                            case 'SERVER_ERROR':
+                                const requestId = errorData.error.requestId;
+                                this.showToast(
+                                    `サーバーエラーが発生しました${requestId ? ` (ID: ${requestId})` : ''}`, 
+                                    'error',
+                                    8000
+                                );
+                                break;
+                            default:
+                                this.showToast(errorData.error.message || 'エラーが発生しました', 'error');
+                        }
+                    } else {
+                        // Legacy error format
+                        this.showToast(errorData.error || 'エラーが発生しました', 'error');
+                    }
+                } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    // Network error
+                    this.showToast('ネットワーク接続に問題があります。インターネット接続を確認してください。', 'error', 8000);
+                } else if (error.name === 'AbortError') {
+                    // Request was aborted
+                    this.showToast('リクエストがタイムアウトしました', 'warning');
+                } else {
+                    // Other errors
+                    this.showToast(`エラーが発生しました: ${error.message}`, 'error');
+                }
+            }
+            
+            static async fetchWithRetry(url, options = {}, maxRetries = 3, delay = 1000) {
+                for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                        
+                        const response = await fetch(url, {
+                            ...options,
+                            signal: controller.signal
+                        });
+                        
+                        clearTimeout(timeoutId);
+                        
+                        if (!response.ok) {
+                            let errorData;
+                            try {
+                                errorData = await response.json();
+                            } catch {
+                                errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+                            }
+                            
+                            const error = new Error(`HTTP ${response.status}`);
+                            error.response = errorData;
+                            error.status = response.status;
+                            throw error;
+                        }
+                        
+                        return response;
+                    } catch (error) {
+                        if (attempt === maxRetries) {
+                            throw error;
+                        }
+                        
+                        // Don't retry on client errors (4xx) except for 408, 429
+                        if (error.status >= 400 && error.status < 500 && 
+                            error.status !== 408 && error.status !== 429) {
+                            throw error;
+                        }
+                        
+                        console.warn(`Attempt ${attempt} failed, retrying in ${delay}ms...`, error.message);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // Exponential backoff
+                    }
+                }
+            }
+            
+            static showSuccess(message) {
+                this.showToast(message, 'success', 3000);
+            }
+            
+            static showWarning(message) {
+                this.showToast(message, 'warning', 4000);
+            }
+            
+            static showInfo(message) {
+                this.showToast(message, 'info', 3000);
+            }
+        }
         let isDragAndDropEnabled = false;
         let draggedElement = null;
         let draggedTaskId = null;
@@ -721,10 +887,9 @@
         
         async function fetchCategories() {
             try {
-                const res = await fetch('/categories', {
+                const res = await ErrorHandler.fetchWithRetry('/categories', {
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
-                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
                 const categories = await res.json();
                 
                 // Update category filter dropdown
@@ -749,6 +914,7 @@
                 });
             } catch (error) {
                 console.error('Error fetching categories:', error);
+                // Don't show error toast for categories as it's not critical
             }
         }
         
@@ -777,28 +943,18 @@
         async function reorderTasks(taskOrders) {
             try {
                 console.log('Reordering tasks:', taskOrders);
-                const res = await fetch('/tasks/reorder', {
+                const res = await ErrorHandler.fetchWithRetry('/tasks/reorder', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ taskOrders })
                 });
                 
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return false;
-                    }
-                    const errorText = await res.text();
-                    console.error('Server error:', res.status, errorText);
-                    throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
-                }
-                
                 const result = await res.json();
                 console.log('Reorder result:', result);
+                ErrorHandler.showSuccess('タスクの並び順を更新しました');
                 return true;
             } catch (error) {
-                console.error('Error reordering tasks:', error);
-                alert('タスクの並び替えに失敗しました: ' + error.message);
+                ErrorHandler.handleApiError(error, 'reorderTasks');
                 return false;
             }
         }
@@ -947,21 +1103,14 @@
 
         async function toggleTaskCompletion(index) {
             try {
-                const res = await fetch(`/tasks/${index}/toggle`, { 
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}/toggle`, { 
                     method: 'PATCH',
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+                
                 fetchTasks();
             } catch (error) {
-                console.error('Error toggling task completion:', error);
-                alert('タスクの完了状態の変更に失敗しました');
+                ErrorHandler.handleApiError(error, 'toggleTaskCompletion');
             }
         }
 
@@ -1015,7 +1164,7 @@
         async function bulkDelete() {
             const selectedIndices = getSelectedTaskIndices();
             if (selectedIndices.length === 0) {
-                alert('削除するタスクを選択してください');
+                ErrorHandler.showWarning('削除するタスクを選択してください');
                 return;
             }
             
@@ -1024,88 +1173,61 @@
             }
             
             try {
-                const res = await fetch('/tasks/bulk-delete', {
+                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-delete', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ indices: selectedIndices })
                 });
                 
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                
                 const result = await res.json();
                 fetchTasks();
-                alert(result.message);
+                ErrorHandler.showSuccess(result.message || '選択したタスクを削除しました');
             } catch (error) {
-                console.error('Error bulk deleting tasks:', error);
-                alert('一括削除に失敗しました');
+                ErrorHandler.handleApiError(error, 'bulkDelete');
             }
         }
 
         async function bulkComplete() {
             const selectedIndices = getSelectedTaskIndices();
             if (selectedIndices.length === 0) {
-                alert('完了するタスクを選択してください');
+                ErrorHandler.showWarning('完了するタスクを選択してください');
                 return;
             }
             
             try {
-                const res = await fetch('/tasks/bulk-complete', {
+                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-complete', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ indices: selectedIndices, completed: true })
                 });
                 
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                
                 const result = await res.json();
                 fetchTasks();
-                alert(result.message);
+                ErrorHandler.showSuccess(result.message || '選択したタスクを完了にしました');
             } catch (error) {
-                console.error('Error bulk completing tasks:', error);
-                alert('一括完了に失敗しました');
+                ErrorHandler.handleApiError(error, 'bulkComplete');
             }
         }
 
         async function bulkIncomplete() {
             const selectedIndices = getSelectedTaskIndices();
             if (selectedIndices.length === 0) {
-                alert('未完了に戻すタスクを選択してください');
+                ErrorHandler.showWarning('未完了に戻すタスクを選択してください');
                 return;
             }
             
             try {
-                const res = await fetch('/tasks/bulk-complete', {
+                const res = await ErrorHandler.fetchWithRetry('/tasks/bulk-complete', {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ indices: selectedIndices, completed: false })
                 });
                 
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                
                 const result = await res.json();
                 fetchTasks();
-                alert(result.message);
+                ErrorHandler.showSuccess(result.message || '選択したタスクを未完了に戻しました');
             } catch (error) {
-                console.error('Error bulk updating tasks to incomplete:', error);
-                alert('一括未完了更新に失敗しました');
+                ErrorHandler.handleApiError(error, 'bulkIncomplete');
             }
         }
 
@@ -1123,16 +1245,9 @@
                 
                 const url = `/tasks${params.toString() ? '?' + params.toString() : ''}`;
                 
-                const res = await fetch(url, {
+                const res = await ErrorHandler.fetchWithRetry(url, {
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
                 let tasks = await res.json();
                 
                 // Sort tasks based on selected order (backend handles search/category filtering and manual sorting)
@@ -1337,8 +1452,7 @@
             clearTaskSelection();
             
             } catch (error) {
-                console.error('Error fetching tasks:', error);
-                alert('タスクの取得に失敗しました');
+                ErrorHandler.handleApiError(error, 'fetchTasks');
             }
         }
         async function addTask() {
@@ -1350,7 +1464,19 @@
             const priority = prioritySelect.value;
             const dueDate = dueDateInput.value || null;
             const category = categoryInput.value.trim() || null;
-            if (!task) return;
+            
+            if (!task) {
+                ErrorHandler.showWarning('タスクの内容を入力してください');
+                input.focus();
+                return;
+            }
+            
+            if (task.length > 200) {
+                ErrorHandler.showWarning('タスクの内容は200文字以内で入力してください');
+                input.focus();
+                return;
+            }
+            
             try {
                 const requestBody = { task, priority };
                 if (dueDate) {
@@ -1360,45 +1486,35 @@
                     requestBody.category = category;
                 }
                 
-                const res = await fetch('/tasks', { 
+                const res = await ErrorHandler.fetchWithRetry('/tasks', { 
                     method: 'POST', 
                     headers: getAuthHeaders(), 
                     body: JSON.stringify(requestBody) 
                 });
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+                
                 input.value = '';
                 prioritySelect.value = 'medium';
                 dueDateInput.value = '';
                 categoryInput.value = '';
+                
+                ErrorHandler.showSuccess('タスクを追加しました');
                 fetchTasks();
             } catch (error) {
-                console.error('Error adding task:', error);
-                alert('タスクの追加に失敗しました');
+                ErrorHandler.handleApiError(error, 'addTask');
             }
         }
         async function deleteTask(index) {
             try {
-                const res = await fetch(`/tasks/${index}`, { 
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}`, { 
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
                 });
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
+                
+                const result = await res.json();
+                ErrorHandler.showSuccess(result.message || 'タスクを削除しました');
                 fetchTasks();
             } catch (error) {
-                console.error('Error deleting task:', error);
-                alert('タスクの削除に失敗しました');
+                ErrorHandler.handleApiError(error, 'deleteTask');
             }
         }
         let currentlyEditingIndex = -1;
@@ -1552,9 +1668,16 @@
             
             // Validate inputs
             if (!newText) {
+                ErrorHandler.showWarning('タスクの内容を入力してください');
                 textInput.focus();
                 textInput.classList.add('border-red-500');
                 setTimeout(() => textInput.classList.remove('border-red-500'), 3000);
+                return;
+            }
+            
+            if (newText.length > 200) {
+                ErrorHandler.showWarning('タスクの内容は200文字以内で入力してください');
+                textInput.focus();
                 return;
             }
             
@@ -1590,27 +1713,19 @@
                     requestBody.category = newCategory;
                 }
                 
-                const res = await fetch(`/tasks/${index}`, { 
+                const res = await ErrorHandler.fetchWithRetry(`/tasks/${index}`, { 
                     method: 'PUT', 
                     headers: getAuthHeaders(), 
                     body: JSON.stringify(requestBody) 
                 });
                 
-                if (!res.ok) {
-                    if (res.status === 401) {
-                        alert('認証エラー: トークンが無効です');
-                        return;
-                    }
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                
                 // Reset editing state and refresh tasks
                 currentlyEditingIndex = -1;
+                ErrorHandler.showSuccess('タスクを更新しました');
                 await fetchTasks();
                 
             } catch (error) {
-                console.error('Error saving task edit:', error);
-                alert('タスクの編集に失敗しました');
+                ErrorHandler.handleApiError(error, 'saveInlineEdit');
                 
                 // Restore save button
                 saveBtn.textContent = originalSaveText;

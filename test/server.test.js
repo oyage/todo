@@ -44,7 +44,8 @@ describe('Todo API', () => {
   test('GET /tasks returns 401 without auth', async () => {
     const res = await request(app).get('/tasks');
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('POST /tasks adds a task with auth', async () => {
@@ -56,12 +57,15 @@ describe('Todo API', () => {
   test('POST /tasks returns 401 without auth', async () => {
     const res = await request(app).post('/tasks').send({ task: 'Test' });
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('POST /tasks rejects invalid task', async () => {
     const res = await request(app).post('/tasks').set(authHeaders).send({ task: '' });
     expect(res.statusCode).toBe(400);
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Task text is required');
   });
 
   test('DELETE /tasks/:index removes a task with auth', async () => {
@@ -75,7 +79,8 @@ describe('Todo API', () => {
   test('DELETE /tasks/:index returns 401 without auth', async () => {
     const res = await request(app).delete('/tasks/0');
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('DELETE /tasks/:index invalid index returns 400', async () => {
@@ -94,7 +99,8 @@ describe('Todo API', () => {
   test('PUT /tasks/:index returns 401 without auth', async () => {
     const res = await request(app).put('/tasks/0').send({ task: 'Test' });
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('PUT /tasks/:index invalid index returns 400', async () => {
@@ -106,19 +112,22 @@ describe('Todo API', () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
     const res = await request(app).put('/tasks/0').set(authHeaders).send({ task: '' });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid task');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Task text is required');
   });
 
   test('PUT /tasks/:index handles non-existent index', async () => {
     const res = await request(app).put('/tasks/999').set(authHeaders).send({ task: 'Test' });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid index');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toContain('Index 999 is out of range');
   });
 
   test('Unauthorized with invalid token', async () => {
     const res = await request(app).get('/tasks').set('Authorization', 'Bearer invalid-token');
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('POST /tasks accepts priority parameter', async () => {
@@ -141,7 +150,8 @@ describe('Todo API', () => {
   test('POST /tasks rejects invalid priority', async () => {
     const res = await request(app).post('/tasks').set(authHeaders).send({ task: 'Test', priority: 'invalid' });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid priority');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Priority must be one of: high, medium, low');
   });
 
   test('PUT /tasks/:index updates task priority', async () => {
@@ -156,7 +166,8 @@ describe('Todo API', () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Test Task' });
     const res = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'Test Task', priority: 'invalid' });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid priority');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Priority must be one of: high, medium, low');
   });
 
   test('GET /tasks returns tasks sorted by priority', async () => {
@@ -239,7 +250,8 @@ describe('Todo API', () => {
       due_date: 'invalid-date' 
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid due_date format');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Due date must be in valid date format (YYYY-MM-DD)');
   });
 
   test('PUT /tasks/:index updates task due_date', async () => {
@@ -276,7 +288,8 @@ describe('Todo API', () => {
       due_date: 'bad-date' 
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid due_date format');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Due date must be in valid date format (YYYY-MM-DD)');
   });
 
   test('POST /tasks accepts category parameter', async () => {
@@ -323,7 +336,8 @@ describe('Todo API', () => {
       category: longCategory 
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid category');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Category cannot exceed 50 characters');
   });
 
   test('PUT /tasks/:index updates task category', async () => {
@@ -359,7 +373,8 @@ describe('Todo API', () => {
       category: longCategory 
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid category');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Category cannot exceed 50 characters');
   });
 
   test('GET /categories returns categories', async () => {
@@ -375,7 +390,8 @@ describe('Todo API', () => {
   test('GET /categories returns 401 without auth', async () => {
     const res = await request(app).get('/categories');
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('GET /tasks supports search query parameter', async () => {
@@ -463,7 +479,7 @@ describe('Todo API', () => {
     // Toggle to completed
     const toggleRes = await request(app).patch('/tasks/0/toggle').set(authHeaders);
     expect(toggleRes.statusCode).toBe(200);
-    expect(toggleRes.body.message).toBe('task completion toggled');
+    expect(toggleRes.body.message).toBe('Task completion toggled successfully');
     
     let res = await request(app).get('/tasks').set(authHeaders);
     expect(res.body[0].completed).toBe(true);
@@ -477,13 +493,15 @@ describe('Todo API', () => {
   test('PATCH /tasks/:index/toggle returns 401 without auth', async () => {
     const res = await request(app).patch('/tasks/0/toggle');
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('PATCH /tasks/:index/toggle returns 400 for invalid index', async () => {
     const res = await request(app).patch('/tasks/999/toggle').set(authHeaders);
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid index');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.message).toContain('Index 999 is out of range');
   });
 
   test('PUT /tasks/:index can update task completion status', async () => {
@@ -507,7 +525,8 @@ describe('Todo API', () => {
       completed: 'invalid' 
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid completed value');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Completed status must be a boolean');
   });
 
   test('GET /tasks returns completed tasks after incomplete tasks', async () => {
@@ -551,7 +570,8 @@ describe('Todo API', () => {
       indices: [0]
     });
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('POST /tasks/bulk-delete rejects invalid indices array', async () => {
@@ -559,7 +579,8 @@ describe('Todo API', () => {
       indices: 'not-an-array'
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid indices array');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Indices must be an array');
   });
 
   test('POST /tasks/bulk-delete rejects empty indices array', async () => {
@@ -567,7 +588,8 @@ describe('Todo API', () => {
       indices: []
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid indices array');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('At least one index must be provided');
   });
 
   test('POST /tasks/bulk-delete handles invalid indices gracefully', async () => {
@@ -577,7 +599,8 @@ describe('Todo API', () => {
       indices: [999, -1, 'invalid']
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('no valid indices provided');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('No valid indices provided');
   });
 
   test('POST /tasks/bulk-complete marks multiple tasks as completed', async () => {
@@ -632,7 +655,8 @@ describe('Todo API', () => {
       completed: true
     });
     expect(res.statusCode).toBe(401);
-    expect(res.body.error).toBe('Unauthorized');
+    expect(res.body.error.type).toBe('AUTHENTICATION_ERROR');
+    expect(res.body.error.code).toBe(401);
   });
 
   test('POST /tasks/bulk-complete rejects invalid completed value', async () => {
@@ -643,7 +667,8 @@ describe('Todo API', () => {
       completed: 'invalid'
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid completed value');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Completed status must be a boolean');
   });
 
   test('POST /tasks/bulk-complete rejects invalid indices array', async () => {
@@ -652,7 +677,8 @@ describe('Todo API', () => {
       completed: true
     });
     expect(res.statusCode).toBe(400);
-    expect(res.body.error).toBe('invalid indices array');
+    expect(res.body.error.type).toBe('VALIDATION_ERROR');
+    expect(res.body.error.details).toContain('Indices must be an array');
   });
 
   // test('index.html escapes task text content', async () => {
