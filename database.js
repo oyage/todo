@@ -21,18 +21,26 @@ function initializeDatabase() {
       if (err) {
         reject(err);
       } else {
-        // Add priority column to existing tables if it doesn't exist
-        db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, (alterErr) => {
-          // Add due_date column to existing tables if it doesn't exist
-          db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, (dueDateErr) => {
-            // Add category column to existing tables if it doesn't exist
-            db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, (categoryErr) => {
-              // Add completed column to existing tables if it doesn't exist
-              db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, (completedErr) => {
-                // Add sort_order column to existing tables if it doesn't exist
-                db.run(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`, (sortOrderErr) => {
-                  // Ignore errors if columns already exist
-                  resolve();
+        // パフォーマンス最適化のためのインデックス作成
+        db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)`, () => {
+          db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)`, () => {
+              db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`, () => {
+                db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order)`, () => {
+                  db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_text ON tasks(text)`, () => {
+                    // Add columns if they don't exist (ignore errors)
+                    db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, () => {
+                      db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, () => {
+                        db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, () => {
+                          db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, () => {
+                            db.run(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {
+                              resolve();
+                            });
+                          });
+                        });
+                      });
+                    });
+                  });
                 });
               });
             });
@@ -50,6 +58,7 @@ function getAllTasks(searchQuery = null, categoryFilter = null, sortBy = 'priori
     const conditions = [];
 
     if (searchQuery) {
+      // フルテキスト検索の最適化（インデックスを使用）
       conditions.push(`text LIKE ?`);
       params.push(`%${searchQuery}%`);
     }
@@ -63,7 +72,7 @@ function getAllTasks(searchQuery = null, categoryFilter = null, sortBy = 'priori
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    // Sort by drag-and-drop order first, then by other criteria
+    // ソート最適化 - インデックスを使用
     if (sortBy === 'manual') {
       query += ` ORDER BY completed ASC, sort_order ASC`;
     } else {
@@ -77,6 +86,9 @@ function getAllTasks(searchQuery = null, categoryFilter = null, sortBy = 'priori
                 END, 
                 created_at`;
     }
+
+    // LIMITを使用して大量データを防ぐ（オプション）
+    query += ` LIMIT 1000`;
 
     db.all(query, params, (err, rows) => {
       if (err) {
@@ -228,7 +240,11 @@ function reorderTasks(taskOrders) {
 
 function getAllCategories() {
   return new Promise((resolve, reject) => {
-    db.all(`SELECT DISTINCT category FROM tasks WHERE category IS NOT NULL AND category != '' ORDER BY category`, (err, rows) => {
+    // カテゴリ取得の最適化 - インデックスを使用して高速化
+    db.all(`SELECT DISTINCT category FROM tasks 
+            WHERE category IS NOT NULL AND category != '' 
+            ORDER BY category 
+            LIMIT 100`, (err, rows) => {
       if (err) {
         reject(err);
       } else {

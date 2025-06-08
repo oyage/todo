@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="シンプルで使いやすいTODOアプリ。タスク管理、優先度設定、カテゴリ分けが可能">
+    <meta name="keywords" content="TODO,タスク管理,生産性,タスクリスト">
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="manifest" href="/manifest.json">
     <title>TODOアプリ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -42,7 +46,6 @@
             /* Better scrolling on mobile */
             body {
                 -webkit-overflow-scrolling: touch;
-                overflow-scrolling: touch;
             }
         }
         
@@ -366,6 +369,72 @@
 
     <script>
         const BEARER_TOKEN = 'your-secret-token';
+        
+        // フロントエンド最適化設定
+        class PerformanceOptimizer {
+            static init() {
+                // サービスワーカーの登録（オフライン対応）
+                if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(() => console.log('Service Worker registered'))
+                        .catch(err => console.log('Service Worker registration failed:', err));
+                }
+                
+                // プリロード重要リソース
+                this.preloadCriticalResources();
+                
+                // 遅延ローディングの設定
+                this.setupLazyLoading();
+                
+                // パフォーマンス測定
+                this.measurePerformance();
+            }
+            
+            static preloadCriticalResources() {
+                // CSS/JS の重要リソースをプリロード
+                const link = document.createElement('link');
+                link.rel = 'preload';
+                link.href = 'https://cdn.tailwindcss.com';
+                link.as = 'script';
+                document.head.appendChild(link);
+            }
+            
+            static setupLazyLoading() {
+                // 画像の遅延ローディング（将来的に画像が追加された場合）
+                if ('IntersectionObserver' in window) {
+                    const imageObserver = new IntersectionObserver((entries) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const img = entry.target;
+                                img.src = img.dataset.src;
+                                img.classList.remove('lazy');
+                                imageObserver.unobserve(img);
+                            }
+                        });
+                    });
+                    
+                    document.querySelectorAll('img[data-src]').forEach(img => {
+                        imageObserver.observe(img);
+                    });
+                }
+            }
+            
+            static measurePerformance() {
+                // ページパフォーマンスの測定
+                if ('performance' in window) {
+                    window.addEventListener('load', () => {
+                        setTimeout(() => {
+                            const navigation = performance.getEntriesByType('navigation')[0];
+                            console.log('Page Load Performance:', {
+                                'DOM Content Loaded': navigation.domContentLoadedEventEnd - navigation.domContentLoadedEventStart,
+                                'Load Complete': navigation.loadEventEnd - navigation.loadEventStart,
+                                'Total Load Time': navigation.loadEventEnd - navigation.fetchStart
+                            });
+                        }, 0);
+                    });
+                }
+            }
+        }
         
         // Enhanced Error Handling System
         class ErrorHandler {
@@ -1784,6 +1853,9 @@
                     addTask();
                 }
             });
+            
+            // パフォーマンス最適化を初期化
+            PerformanceOptimizer.init();
         });
         fetchTasks();
     </script>

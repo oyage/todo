@@ -233,9 +233,46 @@ app.use(express.json({
   type: 'application/json'
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// 静的ファイル配信にキャッシュヘッダーを追加
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0', // 本番環境では1日キャッシュ
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path, stat) => {
+    // HTML ファイルはキャッシュしない（常に最新版を取得）
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    // CSS/JS ファイルは長期キャッシュ
+    else if (path.endsWith('.css') || path.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1年
+    }
+    // 画像ファイルも長期キャッシュ
+    else if (path.match(/\.(png|jpg|jpeg|gif|svg|ico)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30日
+    }
+  }
+}));
 
 const BEARER_TOKEN = process.env.BEARER_TOKEN || 'your-secret-token';
+
+// メモリキャッシュの設定
+const taskCache = new Map();
+const categoryCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5分間キャッシュ
+
+// キャッシュクリア関数
+function clearTaskCache() {
+  taskCache.clear();
+  Logger.info('Task cache cleared');
+}
+
+function clearCategoryCache() {
+  categoryCache.clear();
+  Logger.info('Category cache cleared');
+}
 
 function authenticateToken(req, res, next) {
   try {
@@ -286,6 +323,21 @@ app.get('/tasks', authenticateToken, async (req, res) => {
       return res.status(400).json(ErrorResponse.badRequest('Sort parameter must be one of: manual, priority, created'));
     }
     
+    // キャッシュキーの生成
+    const cacheKey = `tasks:${search || ''}:${category || ''}:${sort || 'priority'}`;
+    
+    // 簡易的なメモリキャッシュ（本番環境ではRedisなどを使用推奨）
+    if (taskCache.has(cacheKey)) {
+      const cached = taskCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        Logger.info('Serving cached tasks', { requestId: req.requestId, cacheKey });
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(cached.data);
+      } else {
+        taskCache.delete(cacheKey);
+      }
+    }
+    
     Logger.info('Fetching tasks', { requestId: req.requestId, search, category, sort });
     const tasks = await getAllTasks(search, category, sort);
     
@@ -299,7 +351,14 @@ app.get('/tasks', authenticateToken, async (req, res) => {
       sort_order: task.sort_order
     }));
     
+    // キャッシュに保存
+    taskCache.set(cacheKey, {
+      data: formattedTasks,
+      timestamp: Date.now()
+    });
+    
     Logger.info('Tasks fetched successfully', { requestId: req.requestId, count: formattedTasks.length });
+    res.setHeader('X-Cache', 'MISS');
     res.json(formattedTasks);
   } catch (err) {
     Logger.error('Error fetching tasks', err, { requestId: req.requestId, query: req.query });
@@ -360,6 +419,11 @@ app.post('/tasks', authenticateToken, async (req, res) => {
     const taskId = await addTask(text.trim(), priority, due_date, category?.trim() || null);
     
     Logger.info('Task created successfully', { requestId: req.requestId, taskId, text: text.trim() });
+    
+    // タスク追加時にキャッシュをクリア
+    clearTaskCache();
+    clearCategoryCache();
+    
     res.status(201).json({ 
       id: taskId,
       text: text.trim(),
@@ -394,6 +458,11 @@ app.delete('/tasks/:id', authenticateToken, async (req, res) => {
     }
     
     Logger.info('Task deleted successfully', { requestId: req.requestId, taskId });
+    
+    // タスク削除時にキャッシュをクリア
+    clearTaskCache();
+    clearCategoryCache();
+    
     res.status(204).send();
   } catch (err) {
     Logger.error('Error deleting task', err, { requestId: req.requestId, id: req.params.id });
@@ -462,6 +531,11 @@ app.put('/tasks/:id', authenticateToken, async (req, res) => {
     }
     
     Logger.info('Task updated successfully', { requestId: req.requestId, taskId, newText: text.trim() });
+    
+    // タスク更新時にキャッシュをクリア
+    clearTaskCache();
+    clearCategoryCache();
+    
     res.json({ 
       id: taskId,
       text: text.trim(),
@@ -512,6 +586,10 @@ app.patch('/tasks/:id', authenticateToken, async (req, res) => {
     }
     
     Logger.info('Task patched successfully', { requestId: req.requestId, taskId });
+    
+    // タスク更新時にキャッシュをクリア
+    clearTaskCache();
+    
     res.status(204).send();
   } catch (err) {
     Logger.error('Error patching task', err, { requestId: req.requestId, id: req.params.id });
@@ -550,6 +628,11 @@ app.delete('/tasks', authenticateToken, async (req, res) => {
     }
     
     Logger.info('Bulk delete completed', { requestId: req.requestId, deletedCount, requestedCount: validIds.length });
+    
+    // 一括削除時にキャッシュをクリア
+    clearTaskCache();
+    clearCategoryCache();
+    
     res.json({ deleted: deletedCount });
   } catch (err) {
     Logger.error('Error in bulk delete operation', err, { requestId: req.requestId });
@@ -596,6 +679,10 @@ app.patch('/tasks', authenticateToken, async (req, res) => {
     }
     
     Logger.info('Bulk patch completed', { requestId: req.requestId, updatedCount, requestedCount: validIds.length });
+    
+    // 一括更新時にキャッシュをクリア
+    clearTaskCache();
+    
     res.json({ updated: updatedCount });
   } catch (err) {
     Logger.error('Error in bulk patch operation', err, { requestId: req.requestId });
@@ -631,10 +718,31 @@ app.post('/tasks/reorder', authenticateToken, async (req, res) => {
 
 app.get('/categories', authenticateToken, async (req, res) => {
   try {
+    const cacheKey = 'categories:all';
+    
+    // カテゴリキャッシュチェック
+    if (categoryCache.has(cacheKey)) {
+      const cached = categoryCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        Logger.info('Serving cached categories', { requestId: req.requestId });
+        res.setHeader('X-Cache', 'HIT');
+        return res.json(cached.data);
+      } else {
+        categoryCache.delete(cacheKey);
+      }
+    }
+    
     Logger.info('Fetching categories', { requestId: req.requestId });
     const categories = await getAllCategories();
     
+    // カテゴリキャッシュに保存
+    categoryCache.set(cacheKey, {
+      data: categories,
+      timestamp: Date.now()
+    });
+    
     Logger.info('Categories fetched successfully', { requestId: req.requestId, count: categories.length });
+    res.setHeader('X-Cache', 'MISS');
     res.json(categories);
   } catch (err) {
     Logger.error('Error fetching categories', err, { requestId: req.requestId });
