@@ -12,6 +12,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       text TEXT NOT NULL,
       priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low')),
+      due_date TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
       if (err) {
@@ -19,8 +20,11 @@ function initializeDatabase() {
       } else {
         // Add priority column to existing tables if it doesn't exist
         db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, (alterErr) => {
-          // Ignore error if column already exists
-          resolve();
+          // Add due_date column to existing tables if it doesn't exist
+          db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, (dueDateErr) => {
+            // Ignore errors if columns already exist
+            resolve();
+          });
         });
       }
     });
@@ -47,13 +51,13 @@ function getAllTasks() {
   });
 }
 
-function addTask(text, priority = 'medium') {
+function addTask(text, priority = 'medium', dueDate = null) {
   return new Promise((resolve, reject) => {
-    db.run('INSERT INTO tasks (text, priority) VALUES (?, ?)', [text, priority], function(err) {
+    db.run('INSERT INTO tasks (text, priority, due_date) VALUES (?, ?, ?)', [text, priority, dueDate], function(err) {
       if (err) {
         reject(err);
       } else {
-        resolve({ id: this.lastID, text, priority, created_at: new Date().toISOString() });
+        resolve({ id: this.lastID, text, priority, due_date: dueDate, created_at: new Date().toISOString() });
       }
     });
   });
@@ -71,7 +75,7 @@ function deleteTask(id) {
   });
 }
 
-function updateTask(id, text, priority) {
+function updateTask(id, text, priority, dueDate) {
   return new Promise((resolve, reject) => {
     const params = [text];
     let query = 'UPDATE tasks SET text = ?';
@@ -79,6 +83,11 @@ function updateTask(id, text, priority) {
     if (priority !== undefined) {
       query += ', priority = ?';
       params.push(priority);
+    }
+    
+    if (dueDate !== undefined) {
+      query += ', due_date = ?';
+      params.push(dueDate);
     }
     
     query += ' WHERE id = ?';

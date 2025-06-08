@@ -50,7 +50,7 @@ describe('Todo API', () => {
   test('POST /tasks adds a task with auth', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Test' });
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'Test', priority: 'medium' }]);
+    expect(res.body).toEqual([{ text: 'Test', priority: 'medium', due_date: null }]);
   });
 
   test('POST /tasks returns 401 without auth', async () => {
@@ -88,7 +88,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'New' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body).toEqual([{ text: 'New', priority: 'medium' }]);
+    expect(res.body).toEqual([{ text: 'New', priority: 'medium', due_date: null }]);
   });
 
   test('PUT /tasks/:index returns 401 without auth', async () => {
@@ -127,15 +127,15 @@ describe('Todo API', () => {
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveLength(2);
-    expect(res.body[0]).toEqual({ text: 'High Priority Task', priority: 'high' });
-    expect(res.body[1]).toEqual({ text: 'Low Priority Task', priority: 'low' });
+    expect(res.body[0]).toEqual({ text: 'High Priority Task', priority: 'high', due_date: null });
+    expect(res.body[1]).toEqual({ text: 'Low Priority Task', priority: 'low', due_date: null });
   });
 
   test('POST /tasks defaults to medium priority', async () => {
     await request(app).post('/tasks').set(authHeaders).send({ task: 'Default Priority Task' });
     const res = await request(app).get('/tasks').set(authHeaders);
     expect(res.statusCode).toBe(200);
-    expect(res.body[0]).toEqual({ text: 'Default Priority Task', priority: 'medium' });
+    expect(res.body[0]).toEqual({ text: 'Default Priority Task', priority: 'medium', due_date: null });
   });
 
   test('POST /tasks rejects invalid priority', async () => {
@@ -149,7 +149,7 @@ describe('Todo API', () => {
     const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ task: 'Test Task', priority: 'high' });
     expect(resUpdate.statusCode).toBe(200);
     const res = await request(app).get('/tasks').set(authHeaders);
-    expect(res.body[0]).toEqual({ text: 'Test Task', priority: 'high' });
+    expect(res.body[0]).toEqual({ text: 'Test Task', priority: 'high', due_date: null });
   });
 
   test('PUT /tasks/:index rejects invalid priority', async () => {
@@ -168,10 +168,89 @@ describe('Todo API', () => {
     expect(res.body).toHaveLength(3);
     expect(res.body[0].text).toBe('High Task');
     expect(res.body[0].priority).toBe('high');
+    expect(res.body[0].due_date).toBe(null);
     expect(res.body[1].text).toBe('Medium Task');
     expect(res.body[1].priority).toBe('medium');
+    expect(res.body[1].due_date).toBe(null);
     expect(res.body[2].text).toBe('Low Task');
     expect(res.body[2].priority).toBe('low');
+    expect(res.body[2].due_date).toBe(null);
+  });
+
+  test('POST /tasks accepts due_date parameter', async () => {
+    const dueDate = '2024-12-31';
+    await request(app).post('/tasks').set(authHeaders).send({ 
+      task: 'Task with deadline', 
+      priority: 'high',
+      due_date: dueDate 
+    });
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0]).toEqual({ 
+      text: 'Task with deadline', 
+      priority: 'high',
+      due_date: dueDate 
+    });
+  });
+
+  test('POST /tasks works without due_date', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ 
+      task: 'Task without deadline', 
+      priority: 'medium'
+    });
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0]).toEqual({ 
+      text: 'Task without deadline', 
+      priority: 'medium',
+      due_date: null 
+    });
+  });
+
+  test('POST /tasks rejects invalid due_date format', async () => {
+    const res = await request(app).post('/tasks').set(authHeaders).send({ 
+      task: 'Test', 
+      due_date: 'invalid-date' 
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid due_date format');
+  });
+
+  test('PUT /tasks/:index updates task due_date', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test Task' });
+    const dueDate = '2024-12-25';
+    const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ 
+      task: 'Test Task', 
+      due_date: dueDate 
+    });
+    expect(resUpdate.statusCode).toBe(200);
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body[0].due_date).toBe(dueDate);
+  });
+
+  test('PUT /tasks/:index removes due_date when set to null', async () => {
+    const dueDate = '2024-12-25';
+    await request(app).post('/tasks').set(authHeaders).send({ 
+      task: 'Test Task', 
+      due_date: dueDate 
+    });
+    const resUpdate = await request(app).put('/tasks/0').set(authHeaders).send({ 
+      task: 'Test Task', 
+      due_date: null 
+    });
+    expect(resUpdate.statusCode).toBe(200);
+    const res = await request(app).get('/tasks').set(authHeaders);
+    expect(res.body[0].due_date).toBe(null);
+  });
+
+  test('PUT /tasks/:index rejects invalid due_date format', async () => {
+    await request(app).post('/tasks').set(authHeaders).send({ task: 'Test Task' });
+    const res = await request(app).put('/tasks/0').set(authHeaders).send({ 
+      task: 'Test Task', 
+      due_date: 'bad-date' 
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toBe('invalid due_date format');
   });
 
   // test('index.html escapes task text content', async () => {

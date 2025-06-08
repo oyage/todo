@@ -26,7 +26,8 @@ app.get('/tasks', authenticateToken, async (req, res) => {
     const tasks = await getAllTasks();
     res.json(tasks.map(task => ({ 
       text: task.text, 
-      priority: task.priority || 'medium' 
+      priority: task.priority || 'medium',
+      due_date: task.due_date 
     })));
   } catch (err) {
     console.error('Error in GET /tasks:', err);
@@ -36,14 +37,17 @@ app.get('/tasks', authenticateToken, async (req, res) => {
 
 app.post('/tasks', authenticateToken, async (req, res) => {
   try {
-    const { task, priority = 'medium' } = req.body;
+    const { task, priority = 'medium', due_date } = req.body;
     if (typeof task !== 'string' || !task.trim()) {
       return res.status(400).json({ error: 'invalid task' });
     }
     if (!['high', 'medium', 'low'].includes(priority)) {
       return res.status(400).json({ error: 'invalid priority' });
     }
-    await addTask(task.trim(), priority);
+    if (due_date && isNaN(Date.parse(due_date))) {
+      return res.status(400).json({ error: 'invalid due_date format' });
+    }
+    await addTask(task.trim(), priority, due_date);
     res.status(201).json({ message: 'task added' });
   } catch (err) {
     console.error('Error in POST /tasks:', err);
@@ -74,7 +78,7 @@ app.put('/tasks/:index', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     const idx = parseInt(req.params.index, 10);
-    const { task, priority } = req.body;
+    const { task, priority, due_date } = req.body;
     if (isNaN(idx) || idx < 0 || idx >= tasks.length) {
       return res.status(400).json({ error: 'invalid index' });
     }
@@ -84,8 +88,11 @@ app.put('/tasks/:index', authenticateToken, async (req, res) => {
     if (priority !== undefined && !['high', 'medium', 'low'].includes(priority)) {
       return res.status(400).json({ error: 'invalid priority' });
     }
+    if (due_date !== undefined && due_date !== null && isNaN(Date.parse(due_date))) {
+      return res.status(400).json({ error: 'invalid due_date format' });
+    }
     const taskId = tasks[idx].id;
-    const updated = await updateTask(taskId, task.trim(), priority);
+    const updated = await updateTask(taskId, task.trim(), priority, due_date);
     if (!updated) {
       return res.status(404).json({ error: 'task not found' });
     }
