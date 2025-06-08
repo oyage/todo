@@ -24,7 +24,10 @@ function authenticateToken(req, res, next) {
 app.get('/tasks', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
-    res.json(tasks.map(task => task.text));
+    res.json(tasks.map(task => ({ 
+      text: task.text, 
+      priority: task.priority || 'medium' 
+    })));
   } catch (err) {
     console.error('Error in GET /tasks:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -33,11 +36,14 @@ app.get('/tasks', authenticateToken, async (req, res) => {
 
 app.post('/tasks', authenticateToken, async (req, res) => {
   try {
-    const { task } = req.body;
+    const { task, priority = 'medium' } = req.body;
     if (typeof task !== 'string' || !task.trim()) {
       return res.status(400).json({ error: 'invalid task' });
     }
-    await addTask(task.trim());
+    if (!['high', 'medium', 'low'].includes(priority)) {
+      return res.status(400).json({ error: 'invalid priority' });
+    }
+    await addTask(task.trim(), priority);
     res.status(201).json({ message: 'task added' });
   } catch (err) {
     console.error('Error in POST /tasks:', err);
@@ -68,15 +74,18 @@ app.put('/tasks/:index', authenticateToken, async (req, res) => {
   try {
     const tasks = await getAllTasks();
     const idx = parseInt(req.params.index, 10);
-    const { task } = req.body;
+    const { task, priority } = req.body;
     if (isNaN(idx) || idx < 0 || idx >= tasks.length) {
       return res.status(400).json({ error: 'invalid index' });
     }
     if (typeof task !== 'string' || !task.trim()) {
       return res.status(400).json({ error: 'invalid task' });
     }
+    if (priority !== undefined && !['high', 'medium', 'low'].includes(priority)) {
+      return res.status(400).json({ error: 'invalid priority' });
+    }
     const taskId = tasks[idx].id;
-    const updated = await updateTask(taskId, task.trim());
+    const updated = await updateTask(taskId, task.trim(), priority);
     if (!updated) {
       return res.status(404).json({ error: 'task not found' });
     }

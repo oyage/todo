@@ -43,12 +43,35 @@
                         placeholder="新しいタスクを入力..." 
                         class="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700 placeholder-gray-400"
                     >
+                    <select 
+                        id="prioritySelect" 
+                        class="px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors duration-200 text-gray-700"
+                    >
+                        <option value="high">🔴 高</option>
+                        <option value="medium" selected>🟡 中</option>
+                        <option value="low">🟢 低</option>
+                    </select>
                     <button 
                         onclick="addTask()" 
                         class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
                     >
                         追加
                     </button>
+                </div>
+            </div>
+            
+            <div class="mb-6 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-gray-800">タスク一覧</h2>
+                <div class="flex gap-2">
+                    <label for="sortOrder" class="text-sm text-gray-600">並び順:</label>
+                    <select 
+                        id="sortOrder" 
+                        onchange="fetchTasks()" 
+                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    >
+                        <option value="priority">優先度順</option>
+                        <option value="created">作成日順</option>
+                    </select>
                 </div>
             </div>
             
@@ -66,6 +89,24 @@
             };
         }
         
+        function getPriorityIcon(priority) {
+            switch(priority) {
+                case 'high': return '🔴';
+                case 'medium': return '🟡';
+                case 'low': return '🟢';
+                default: return '🟡';
+            }
+        }
+        
+        function getPriorityLabel(priority) {
+            switch(priority) {
+                case 'high': return '高';
+                case 'medium': return '中';
+                case 'low': return '低';
+                default: return '中';
+            }
+        }
+        
         async function fetchTasks() {
             const res = await fetch('/tasks', {
                 headers: { 'Authorization': `Bearer ${BEARER_TOKEN}` }
@@ -77,7 +118,14 @@
                 }
                 throw new Error(`HTTP error! status: ${res.status}`);
             }
-            const tasks = await res.json();
+            let tasks = await res.json();
+            
+            // Sort tasks based on selected order
+            const sortOrder = document.getElementById('sortOrder').value;
+            if (sortOrder === 'created') {
+                tasks = tasks.reverse(); // Since they come pre-sorted by priority, reverse for creation order
+            }
+            
             const list = document.getElementById('taskList');
             list.innerHTML = '';
             
@@ -112,9 +160,31 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'flex items-center justify-between';
 
+                const taskContent = document.createElement('div');
+                taskContent.className = 'flex items-center flex-1 mr-4';
+                
+                const priorityBadge = document.createElement('span');
+                priorityBadge.className = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mr-3';
+                priorityBadge.textContent = `${getPriorityIcon(task.priority)} ${getPriorityLabel(task.priority)}`;
+                
+                // Priority-specific styling
+                switch(task.priority) {
+                    case 'high':
+                        priorityBadge.className += ' bg-red-100 text-red-800';
+                        break;
+                    case 'medium':
+                        priorityBadge.className += ' bg-yellow-100 text-yellow-800';
+                        break;
+                    case 'low':
+                        priorityBadge.className += ' bg-green-100 text-green-800';
+                        break;
+                    default:
+                        priorityBadge.className += ' bg-yellow-100 text-yellow-800';
+                }
+
                 const span = document.createElement('span');
-                span.className = 'text-gray-800 font-medium flex-1 mr-4';
-                span.textContent = task;
+                span.className = 'text-gray-800 font-medium';
+                span.textContent = task.text;
 
                 const btnContainer = document.createElement('div');
                 btnContainer.className = 'flex gap-2';
@@ -132,7 +202,9 @@
                 btnContainer.appendChild(editBtn);
                 btnContainer.appendChild(deleteBtn);
 
-                wrapper.appendChild(span);
+                taskContent.appendChild(priorityBadge);
+                taskContent.appendChild(span);
+                wrapper.appendChild(taskContent);
                 wrapper.appendChild(btnContainer);
                 li.appendChild(wrapper);
 
@@ -141,13 +213,15 @@
         }
         async function addTask() {
             const input = document.getElementById('newTask');
+            const prioritySelect = document.getElementById('prioritySelect');
             const task = input.value.trim();
+            const priority = prioritySelect.value;
             if (!task) return;
             try {
                 const res = await fetch('/tasks', { 
                     method: 'POST', 
                     headers: getAuthHeaders(), 
-                    body: JSON.stringify({ task }) 
+                    body: JSON.stringify({ task, priority }) 
                 });
                 if (!res.ok) {
                     if (res.status === 401) {
@@ -157,6 +231,7 @@
                     throw new Error(`HTTP error! status: ${res.status}`);
                 }
                 input.value = '';
+                prioritySelect.value = 'medium';
                 fetchTasks();
             } catch (error) {
                 console.error('Error adding task:', error);
@@ -183,26 +258,36 @@
             }
         }
         async function editTask(index, currentTask) {
-            const newTask = prompt('タスクを編集:', currentTask);
-            if (newTask && newTask.trim() && newTask.trim() !== currentTask) {
-                try {
-                    const res = await fetch(`/tasks/${index}`, { 
-                        method: 'PUT', 
-                        headers: getAuthHeaders(), 
-                        body: JSON.stringify({ task: newTask.trim() }) 
-                    });
-                    if (!res.ok) {
-                        if (res.status === 401) {
-                            alert('認証エラー: トークンが無効です');
-                            return;
-                        }
-                        throw new Error(`HTTP error! status: ${res.status}`);
+            const newTask = prompt('タスクを編集:', currentTask.text);
+            if (!newTask || newTask.trim() === currentTask.text) return;
+            
+            // Priority selection dialog
+            const priorityChoice = prompt(
+                `優先度を選択してください:\n1: 🔴 高\n2: 🟡 中\n3: 🟢 低\n\n現在: ${getPriorityLabel(currentTask.priority)}\n\n数字を入力 (1-3):`
+            );
+            
+            let priority = currentTask.priority;
+            if (priorityChoice === '1') priority = 'high';
+            else if (priorityChoice === '2') priority = 'medium';
+            else if (priorityChoice === '3') priority = 'low';
+            
+            try {
+                const res = await fetch(`/tasks/${index}`, { 
+                    method: 'PUT', 
+                    headers: getAuthHeaders(), 
+                    body: JSON.stringify({ task: newTask.trim(), priority }) 
+                });
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        alert('認証エラー: トークンが無効です');
+                        return;
                     }
-                    fetchTasks();
-                } catch (error) {
-                    console.error('Error editing task:', error);
-                    alert('タスクの編集に失敗しました');
+                    throw new Error(`HTTP error! status: ${res.status}`);
                 }
+                fetchTasks();
+            } catch (error) {
+                console.error('Error editing task:', error);
+                alert('タスクの編集に失敗しました');
             }
         }
         
