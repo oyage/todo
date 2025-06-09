@@ -37,7 +37,7 @@ function initializeDatabase() {
         if (err) {
           reject(err);
         } else {
-        // パフォーマンス最適化のためのインデックス作成
+          // パフォーマンス最適化のためのインデックス作成
         db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`, () => {
           db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)`, () => {
             db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)`, () => {
@@ -48,16 +48,19 @@ function initializeDatabase() {
                     db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_completed ON tasks(user_id, completed)`, () => {
                       db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks(user_id, category)`, () => {
                         db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_priority ON tasks(user_id, priority)`, () => {
-                    // Add columns if they don't exist (ignore errors)
-                    db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, () => {
-                      db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, () => {
-                        db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, () => {
-                          db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, () => {
-                            db.run(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {
-                              db.run(`ALTER TABLE tasks ADD COLUMN user_id INTEGER`, () => {
-                                // Delete any existing tasks without user_id (orphaned data)
-                                db.run(`DELETE FROM tasks WHERE user_id IS NULL`, () => {
-                                  resolve();
+                          // Add columns if they don't exist (ignore errors)
+                          db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, () => {
+                            db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, () => {
+                              db.run(`ALTER TABLE tasks ADD COLUMN category TEXT`, () => {
+                                db.run(`ALTER TABLE tasks ADD COLUMN completed BOOLEAN DEFAULT 0`, () => {
+                                  db.run(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`, () => {
+                                    db.run(`ALTER TABLE tasks ADD COLUMN user_id INTEGER`, () => {
+                                      // Delete any existing tasks without user_id (orphaned data)
+                                      db.run(`DELETE FROM tasks WHERE user_id IS NULL`, () => {
+                                        resolve();
+                                      });
+                                    });
+                                  });
                                 });
                               });
                             });
