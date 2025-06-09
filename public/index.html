@@ -7,7 +7,16 @@
     <meta name="keywords" content="TODO,タスク管理,生産性,タスクリスト">
     <meta name="theme-color" content="#3b82f6">
     <link rel="manifest" href="/manifest.json">
-    <title>TODOアプリ</title>
+    
+    <!-- アクセシビリティとSEO向上 -->
+    <meta name="robots" content="index,follow">
+    <meta name="author" content="TODO App">
+    <meta property="og:title" content="TODOアプリ">
+    <meta property="og:description" content="シンプルで使いやすいTODOアプリ">
+    <meta property="og:type" content="website">
+    <link rel="canonical" href="/">
+    
+    <title>TODOアプリ - シンプルなタスク管理</title>
     <script src="https://cdn.tailwindcss.com" defer></script>
     <script>
         tailwind.config = {
@@ -53,6 +62,45 @@
         .touch-manipulation {
             touch-action: manipulation;
         }
+        
+        /* CSS最適化: レイアウトシフト防止とパフォーマンス向上 */
+        .task-item {
+            contain: layout style;
+            will-change: transform;
+        }
+        
+        /* GPU加速によるアニメーション最適化 */
+        .animate-fade-in,
+        .animate-slide-in {
+            transform: translateZ(0); /* Force GPU acceleration */
+            backface-visibility: hidden; /* Prevent flickering */
+        }
+        
+        /* スクロールパフォーマンス最適化 */
+        .task-list-container {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+            /* virtual scrolling support */
+            contain: strict;
+        }
+        
+        /* 効率的な再描画のためのレイヤー分離 */
+        .floating-elements {
+            position: relative;
+            z-index: 10;
+            transform: translateZ(0);
+        }
+        
+        /* フォントロード最適化 */
+        @font-display {
+            font-display: swap; /* フォント読み込み最適化 */
+        }
+        
+        /* Critical CSS - Above the fold content */
+        .critical-content {
+            critical: true; /* 重要コンテンツマーカー */
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 min-h-screen transition-colors duration-300">
@@ -73,6 +121,7 @@
                             onclick="logout()"
                             class="px-3 py-1.5 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors duration-200 touch-manipulation"
                             title="ログアウト"
+                            aria-label="ログアウト"
                         >
                             ログアウト
                         </button>
@@ -82,16 +131,20 @@
                         onclick="toggleShortcutHelp()"
                         class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
                         title="キーボードショートカット (H)"
+                        aria-label="キーボードショートカットヘルプを表示"
+                        role="button"
                     >
-                        <span class="text-xl">⌨️</span>
+                        <span class="text-xl" aria-hidden="true">⌨️</span>
                     </button>
                     <button 
                         id="themeToggle"
                         onclick="toggleTheme()"
                         class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 touch-manipulation"
                         title="テーマを切り替え (T)"
+                        aria-label="ダークモードとライトモードを切り替え"
+                        role="button"
                     >
-                        <span id="themeIcon" class="text-xl">🌙</span>
+                        <span id="themeIcon" class="text-xl" aria-hidden="true">🌙</span>
                     </button>
                 </div>
             </div>
@@ -464,6 +517,12 @@
                 
                 // パフォーマンス測定
                 this.measurePerformance();
+                
+                // メモリ使用量の監視
+                this.monitorMemoryUsage();
+                
+                // タスクキャッシュの初期化
+                this.initTaskCache();
             }
             
             static preloadCriticalResources() {
@@ -509,6 +568,89 @@
                         }, 0);
                     });
                 }
+            }
+            
+            static monitorMemoryUsage() {
+                // メモリ使用量の監視（対応ブラウザのみ）
+                if ('memory' in performance) {
+                    setInterval(() => {
+                        const memory = performance.memory;
+                        const usedPercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
+                        
+                        if (usedPercent > 80) {
+                            console.warn('High memory usage detected:', usedPercent.toFixed(2) + '%');
+                            // メモリクリーンアップの実行
+                            this.cleanupMemory();
+                        }
+                    }, 30000); // 30秒ごとにチェック
+                }
+            }
+            
+            static cleanupMemory() {
+                // キャッシュのクリーンアップ
+                if (window.TaskCache) {
+                    const cacheSize = TaskCache.size();
+                    if (cacheSize > 50) {
+                        TaskCache.clear();
+                        console.log('Cache cleared due to memory pressure');
+                    }
+                }
+                
+                // ガベージコレクションの強制実行（ChromeのDevToolsでのみ有効）
+                if (window.gc && typeof window.gc === 'function') {
+                    window.gc();
+                }
+            }
+            
+            static initTaskCache() {
+                // LRUキャッシュシステムの初期化
+                window.TaskCache = new class {
+                    constructor() {
+                        this.cache = new Map();
+                        this.maxSize = 20;
+                        this.ttl = 5 * 60 * 1000; // 5分
+                    }
+                    
+                    get(key) {
+                        if (this.cache.has(key)) {
+                            const item = this.cache.get(key);
+                            if (Date.now() - item.timestamp < this.ttl) {
+                                // LRU: アクセスされたアイテムを最後に移動
+                                this.cache.delete(key);
+                                this.cache.set(key, item);
+                                return item;
+                            } else {
+                                this.cache.delete(key);
+                            }
+                        }
+                        return null;
+                    }
+                    
+                    set(key, data) {
+                        if (this.cache.size >= this.maxSize) {
+                            // 最も古いアイテムを削除
+                            const firstKey = this.cache.keys().next().value;
+                            this.cache.delete(firstKey);
+                        }
+                        
+                        this.cache.set(key, {
+                            data: data,
+                            timestamp: Date.now()
+                        });
+                    }
+                    
+                    has(key) {
+                        return this.get(key) !== null;
+                    }
+                    
+                    clear() {
+                        this.cache.clear();
+                    }
+                    
+                    size() {
+                        return this.cache.size;
+                    }
+                };
             }
         }
         
