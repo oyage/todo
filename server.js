@@ -15,6 +15,69 @@ const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 
 // Enhanced logging utility
 class Logger {
+  static ensureLogDir() {
+    const logDir = path.join(__dirname, 'logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    return logDir;
+  }
+  
+  static rotateLogFile(logPath, maxSize = 10 * 1024 * 1024) { // 10MB default
+    try {
+      if (fs.existsSync(logPath)) {
+        const stats = fs.statSync(logPath);
+        if (stats.size > maxSize) {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const rotatedPath = `${logPath}.${timestamp}`;
+          fs.renameSync(logPath, rotatedPath);
+          console.log(`Log file rotated: ${logPath} -> ${rotatedPath}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to rotate log file:', error);
+    }
+  }
+  
+  static cleanOldLogs(logDir, retentionDays = 30) {
+    try {
+      const files = fs.readdirSync(logDir);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      
+      files.forEach(file => {
+        const filePath = path.join(logDir, file);
+        const stats = fs.statSync(filePath);
+        
+        if (stats.mtime < cutoffDate) {
+          fs.unlinkSync(filePath);
+          console.log(`Old log file deleted: ${file}`);
+        }
+      });
+    } catch (error) {
+      console.error('Failed to clean old logs:', error);
+    }
+  }
+  
+  static writeToFile(logDir, filename, content) {
+    try {
+      const logPath = path.join(logDir, filename);
+      
+      // Rotate log file if it's too large
+      this.rotateLogFile(logPath);
+      
+      fs.appendFileSync(logPath, content + '\n');
+      
+      // Clean old logs periodically (once per day)
+      const now = new Date();
+      if (now.getHours() === 0 && now.getMinutes() < 5) {
+        this.cleanOldLogs(logDir);
+      }
+    } catch (error) {
+      console.error('Failed to write to log file:', error);
+    }
+  }
+  
   static log(level, message, meta = {}) {
     const timestamp = new Date().toISOString();
     const logEntry = {
@@ -24,8 +87,49 @@ class Logger {
       ...meta
     };
     
-    console.log(`[${timestamp}] ${level.toUpperCase()}: ${message}`, 
-      Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '');
+    const formattedLog = `[${timestamp}] ${level.toUpperCase()}: ${message}${
+      Object.keys(meta).length > 0 ? ' ' + JSON.stringify(meta) : ''}`;
+    
+    // Console output
+    console.log(formattedLog);
+    
+    // File output
+    const logDir = this.ensureLogDir();
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Write to daily log file
+    this.writeToFile(logDir, `app-${today}.log`, formattedLog);
+    
+    // Write to level-specific log files
+    if (level === 'error') {
+      this.writeToFile(logDir, `error-${today}.log`, formattedLog);
+    }
+  }
+  
+  static access(req, res, responseTime) {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+      timestamp,
+      method: req.method,
+      url: req.originalUrl || req.url,
+      status: res.statusCode,
+      responseTime: `${responseTime}ms`,
+      ip: req.ip || req.connection?.remoteAddress || '-',
+      userAgent: req.get('User-Agent') || '-',
+      requestId: req.requestId || '-',
+      contentLength: res.get('Content-Length') || '-',
+      referer: req.get('Referer') || '-'
+    };
+    
+    const accessLog = `${timestamp} ${req.ip} "${req.method} ${req.originalUrl || req.url} HTTP/1.1" ${res.statusCode} ${res.get('Content-Length') || '-'} "${req.get('Referer') || '-'}" "${req.get('User-Agent') || '-'}" ${responseTime}ms [${req.requestId || '-'}]`;
+    
+    // Console output for access logs
+    console.log(`ACCESS: ${accessLog}`);
+    
+    // File output
+    const logDir = this.ensureLogDir();
+    const today = new Date().toISOString().split('T')[0];
+    this.writeToFile(logDir, `access-${today}.log`, accessLog);
   }
   
   static error(message, error = null, meta = {}) {
@@ -225,8 +329,11 @@ const authLimiter = rateLimit({
   }
 });
 
-// Request ID middleware for tracking
+// Access logging middleware
 app.use((req, res, next) => {
+  const startTime = Date.now();
+  
+  // Request ID generation
   req.requestId = Math.random().toString(36).substr(2, 9);
   res.setHeader('X-Request-ID', req.requestId);
   
@@ -235,6 +342,18 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Override res.end to capture response time
+  const originalEnd = res.end;
+  res.end = function(...args) {
+    const responseTime = Date.now() - startTime;
+    
+    // Log access information
+    Logger.access(req, res, responseTime);
+    
+    // Call original end method
+    originalEnd.apply(res, args);
+  };
   
   Logger.info(`${req.method} ${req.path}`, { 
     requestId: req.requestId,
@@ -1271,22 +1390,73 @@ app.get('/categories', authenticateToken, async (req, res) => {
   }
 });
 
-// Global error handler middleware
+// Enhanced global error handler middleware
 app.use((err, req, res, next) => {
   const requestId = req.requestId || 'unknown';
+  const errorId = Math.random().toString(36).substr(2, 9);
   
-  Logger.error('Unhandled error', err, { requestId, path: req.path, method: req.method });
+  // Detailed error logging
+  const errorDetails = {
+    errorId,
+    requestId,
+    path: req.path,
+    method: req.method,
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    timestamp: new Date().toISOString(),
+    body: req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' ? req.body : undefined,
+    query: req.query,
+    params: req.params,
+    headers: {
+      'content-type': req.get('Content-Type'),
+      'authorization': req.get('Authorization') ? '[PRESENT]' : '[ABSENT]',
+      'origin': req.get('Origin')
+    }
+  };
+  
+  Logger.error('Unhandled application error', err, errorDetails);
   
   // Handle specific error types
   if (err.type === 'entity.parse.failed') {
+    Logger.warn('JSON parse error', { errorId, requestId, contentType: req.get('Content-Type') });
     return res.status(400).json(ErrorResponse.badRequest('Invalid JSON in request body'));
   }
   
   if (err.type === 'entity.too.large') {
+    Logger.warn('Request entity too large', { errorId, requestId, contentLength: req.get('Content-Length') });
     return res.status(413).json(ErrorResponse.badRequest('Request body too large'));
   }
   
+  if (err.code === 'EBADCSRFTOKEN') {
+    Logger.warn('CSRF token error', { errorId, requestId });
+    return res.status(403).json(ErrorResponse.unauthorized('Invalid CSRF token'));
+  }
+  
+  if (err.status === 404) {
+    Logger.warn('Route not found error', { errorId, requestId, originalUrl: req.originalUrl });
+    return res.status(404).json(ErrorResponse.notFound('Endpoint'));
+  }
+  
+  // Rate limiting errors
+  if (err.statusCode === 429) {
+    Logger.warn('Rate limit error handled', { errorId, requestId });
+    return res.status(429).json(ErrorResponse.badRequest('Too many requests'));
+  }
+  
+  // Database errors
+  if (err.code && err.code.startsWith('SQLITE_')) {
+    Logger.error('Database error', err, { errorId, requestId, sqliteCode: err.code });
+    return res.status(500).json(ErrorResponse.serverError('Database operation failed', requestId));
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    Logger.warn('JWT authentication error', { errorId, requestId, errorName: err.name });
+    return res.status(401).json(ErrorResponse.unauthorized('Invalid or expired token'));
+  }
+  
   // Default server error
+  Logger.error('Unhandled server error', err, { errorId, requestId });
   res.status(500).json(ErrorResponse.serverError('An unexpected error occurred', requestId));
 });
 
@@ -1356,7 +1526,29 @@ function createRedirectToHTTPS() {
 // HTTPSリダイレクトミドルウェアの適用
 app.use(createRedirectToHTTPS());
 
+// Initialize logging on startup
+function initializeLogging() {
+  try {
+    const logDir = Logger.ensureLogDir();
+    Logger.info('Logging system initialized', { logDir });
+    
+    // Clean old logs on startup
+    Logger.cleanOldLogs(logDir);
+    
+    // Set up periodic log cleanup (every 24 hours)
+    setInterval(() => {
+      Logger.cleanOldLogs(logDir);
+    }, 24 * 60 * 60 * 1000);
+    
+  } catch (error) {
+    console.error('Failed to initialize logging:', error);
+  }
+}
+
 if (require.main === module) {
+  // Initialize logging first
+  initializeLogging();
+  
   initializeDatabase().then(() => {
     // HTTPサーバーの起動
     const httpServer = app.listen(PORT, () => {
