@@ -27,9 +27,18 @@
 - ✅ 本番環境でのHTTPSリダイレクト
 
 ### 5. 認証・認可
-- ✅ Bearer Token認証
+- ✅ JWT認証システム（推奨）
+- ✅ Bearer Token認証（後方互換性）
+- ✅ bcryptによるパスワードハッシュ化
+- ✅ 設定可能なトークン有効期限
 - ✅ 強化されたトークン検証
 - ✅ 認証失敗の詳細ログ
+
+### 6. パフォーマンスセキュリティ
+- ✅ LRUキャッシュによるメモリ効率化
+- ✅ データベースクエリ最適化
+- ✅ レスポンス圧縮によるデータ転送最小化
+- ✅ メモリ使用量監視と自動クリーンアップ
 
 ## セキュリティベストプラクティス
 
@@ -47,11 +56,18 @@ npm run security-check
 
 ### 本番環境
 ```bash
-# 環境変数の設定
+# 環境変数の設定（.env.exampleから安全なトークンを使用）
 export NODE_ENV=production
-export BEARER_TOKEN=<強力なランダムトークン>
+export BEARER_TOKEN=<.env.exampleの64文字トークン>
+export JWT_SECRET=<.env.exampleの128文字シークレット>
+export JWT_EXPIRES_IN=24h
 export ALLOWED_ORIGINS=https://yourdomain.com
 export ENABLE_HTTPS_REDIRECT=true
+
+# パフォーマンス設定
+export CACHE_TTL=300000
+export ENABLE_COMPRESSION=true
+export RATE_LIMIT_MAX_REQUESTS=100
 
 # 本番サーバーの起動
 npm run start:prod
@@ -64,20 +80,27 @@ npm run start:prod
 | 変数名 | 説明 | デフォルト値 | 必須 |
 |--------|------|-------------|------|
 | `NODE_ENV` | 実行環境 | development | ❌ |
-| `BEARER_TOKEN` | API認証トークン | your-secret-token | ✅ |
+| `BEARER_TOKEN` | API認証トークン（64文字） | .env.exampleを使用 | ✅ |
+| `JWT_SECRET` | JWT署名キー（128文字） | .env.exampleを使用 | ✅ |
+| `JWT_EXPIRES_IN` | JWTトークン有効期限 | 24h | ❌ |
 | `ALLOWED_ORIGINS` | 許可オリジン | localhost系 | ❌ |
 | `ENABLE_HTTPS_REDIRECT` | HTTPSリダイレクト | false | ❌ |
-| `RATE_LIMIT_MAX_REQUESTS` | Rate Limit上限 | 100 | ❌ |
+| `RATE_LIMIT_MAX_REQUESTS` | Rate Limit上限 | 1000（dev）/100（prod） | ❌ |
+| `CACHE_TTL` | キャッシュ有効期限 | 300000（5分） | ❌ |
+| `ENABLE_COMPRESSION` | gzip圧縮 | true | ❌ |
 
 ## セキュリティチェックリスト
 
 ### 🔒 本番環境デプロイ前
-- [ ] 強力なBEARER_TOKENの設定
+- [ ] 強力なBEARER_TOKEN（64文字）の設定
+- [ ] 強力なJWT_SECRET（128文字）の設定
 - [ ] ALLOWED_ORIGINSの適切な設定
 - [ ] SSL証明書の正しい配置
 - [ ] HTTPS_REDIRECTの有効化
-- [ ] Rate Limitingの値確認
+- [ ] Rate Limitingの値確認（本番用に100に設定）
 - [ ] セキュリティヘッダーの検証
+- [ ] パフォーマンス設定の最適化
+- [ ] キャッシュ設定の確認
 
 ### 🛡️ 定期的なメンテナンス
 - [ ] 依存関係の脆弱性チェック (`npm audit`)

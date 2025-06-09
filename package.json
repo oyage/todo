@@ -1,8 +1,8 @@
 {
-  "name": "todo",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "todo-app-secure",
+  "version": "2.0.0",
+  "description": "A secure, high-performance web-based TODO manager with comprehensive task management features, JWT authentication, advanced caching, and production-ready Docker deployment.",
+  "main": "server.js",
   "scripts": {
     "test": "jest",
     "start": "node server.js",
@@ -24,9 +24,28 @@
     "docker:security-audit": "./scripts/docker-security-audit.sh",
     "docker:build": "docker-compose build --no-cache"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "todo",
+    "task-management",
+    "productivity",
+    "express",
+    "sqlite",
+    "jwt",
+    "pwa",
+    "security",
+    "performance",
+    "docker"
+  ],
+  "author": "TODO App Development Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/todo-app/todo-app-secure.git"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.2",
