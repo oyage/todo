@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const compression = require('compression');
 const { initializeDatabase, getAllTasks, addTask, deleteTask, updateTask, toggleTaskCompletion, reorderTasks, getAllCategories, createUser, getUserByEmail, getUserByUsername, getUserById } = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -188,6 +189,21 @@ const securityConfig = {
   }
 };
 
+// パフォーマンス最適化ミドルウェア
+if (process.env.ENABLE_COMPRESSION !== 'false') {
+  app.use(compression({
+    level: 6, // 圧縮レベル（1-9、6が推奨）
+    threshold: 1024, // 1KB以上のレスポンスを圧縮
+    filter: (req, res) => {
+      // compressible content-typeかつ、cache-controlがno-transformでない場合に圧縮
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
+}
+
 // セキュリティミドルウェアの適用
 app.use(helmet(securityConfig.helmet));
 app.use(cors(securityConfig.cors));
@@ -262,10 +278,66 @@ const BEARER_TOKEN = process.env.BEARER_TOKEN || 'your-secret-token';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
+// パフォーマンス設定
+const CACHE_TTL = parseInt(process.env.CACHE_TTL) || 5 * 60 * 1000; // デフォルト5分間キャッシュ
+const MAX_CACHE_SIZE = parseInt(process.env.MAX_CACHE_SIZE) || 1000; // 最大キャッシュエントリ数
+
+// LRU（Least Recently Used）キャッシュの実装
+class LRUCache {
+  constructor(maxSize = MAX_CACHE_SIZE) {
+    this.maxSize = maxSize;
+    this.cache = new Map();
+  }
+  
+  get(key) {
+    if (this.cache.has(key)) {
+      const value = this.cache.get(key);
+      // アクセス時にエントリを削除して再追加（LRU順序の維持）
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      
+      // TTL チェック
+      if (Date.now() - value.timestamp > CACHE_TTL) {
+        this.cache.delete(key);
+        return null;
+      }
+      return value;
+    }
+    return null;
+  }
+  
+  set(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= this.maxSize) {
+      // 最も古いエントリを削除
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { ...value, timestamp: Date.now() });
+  }
+  
+  delete(key) {
+    return this.cache.delete(key);
+  }
+  
+  clear() {
+    this.cache.clear();
+  }
+  
+  has(key) {
+    const cached = this.get(key);
+    return cached !== null;
+  }
+  
+  size() {
+    return this.cache.size;
+  }
+}
+
 // メモリキャッシュの設定
-const taskCache = new Map();
-const categoryCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5分間キャッシュ
+const taskCache = new LRUCache();
+const categoryCache = new LRUCache();
 
 // キャッシュクリア関数
 function clearTaskCache() {

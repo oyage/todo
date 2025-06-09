@@ -38,12 +38,16 @@ function initializeDatabase() {
           reject(err);
         } else {
         // パフォーマンス最適化のためのインデックス作成
-        db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)`, () => {
-          db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)`, () => {
-            db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)`, () => {
-              db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`, () => {
-                db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order)`, () => {
-                  db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_text ON tasks(text)`, () => {
+        db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`, () => {
+          db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority)`, () => {
+              db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_category ON tasks(category)`, () => {
+                db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`, () => {
+                  db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order)`, () => {
+                    // 複合インデックス（よく使われるクエリの組み合わせ）
+                    db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_completed ON tasks(user_id, completed)`, () => {
+                      db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks(user_id, category)`, () => {
+                        db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_user_priority ON tasks(user_id, priority)`, () => {
                     // Add columns if they don't exist (ignore errors)
                     db.run(`ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium' CHECK (priority IN ('high', 'medium', 'low'))`, () => {
                       db.run(`ALTER TABLE tasks ADD COLUMN due_date TEXT`, () => {
@@ -99,18 +103,38 @@ function getAllTasks(userId, searchQuery = null, categoryFilter = null, sortBy =
     }
 
     // ソート最適化 - インデックスを使用
-    if (sortBy === 'manual') {
-      query += ` ORDER BY completed ASC, sort_order ASC`;
-    } else {
-      query += ` ORDER BY 
-                completed ASC,
-                CASE priority 
-                  WHEN 'high' THEN 1 
-                  WHEN 'medium' THEN 2 
-                  WHEN 'low' THEN 3 
-                  ELSE 2 
-                END, 
-                created_at`;
+    switch (sortBy) {
+      case 'manual':
+        query += ` ORDER BY completed ASC, sort_order ASC`;
+        break;
+      case 'priority':
+        query += ` ORDER BY completed ASC, 
+                   CASE priority 
+                     WHEN 'high' THEN 1 
+                     WHEN 'medium' THEN 2 
+                     WHEN 'low' THEN 3 
+                     ELSE 2 
+                   END ASC, 
+                   created_at DESC`;
+        break;
+      case 'created':
+        query += ` ORDER BY completed ASC, created_at DESC`;
+        break;
+      case 'due_date':
+        query += ` ORDER BY completed ASC, 
+                   CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+                   due_date ASC,
+                   created_at DESC`;
+        break;
+      default:
+        query += ` ORDER BY completed ASC, 
+                   CASE priority 
+                     WHEN 'high' THEN 1 
+                     WHEN 'medium' THEN 2 
+                     WHEN 'low' THEN 3 
+                     ELSE 2 
+                   END ASC, 
+                   created_at DESC`;
     }
 
     // LIMITを使用して大量データを防ぐ（オプション）
